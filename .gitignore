@@ -1,0 +1,14 @@
+##########
+# System #
+##########
+
+# macOS
+.DS_Store
+
+
+#############
+# Simulator #
+#############
+
+/trs/
+/V-REP_PRO_EDU_V3_6_2_Mac/
