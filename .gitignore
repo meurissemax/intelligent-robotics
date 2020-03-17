@@ -6,9 +6,12 @@
 .DS_Store
 
 
-#############
-# Simulator #
-#############
+#####################
+# Project resources #
+#####################
 
-/trs/
-/V-REP_PRO_EDU_V3_6_2_Mac/
+# TRS
+trs/
+
+# V-REP
+V-REP_PRO_EDU_V3_6_2_Mac/
