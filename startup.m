@@ -2,6 +2,12 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
+%% Setup
+
+% Suppress warning messages
+warning('off', 'all');
+
+
 %% TRS
 
 % Launch the startup script of TRS
