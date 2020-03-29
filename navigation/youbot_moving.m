@@ -68,8 +68,11 @@ function youbot_moving()
     [X, Y] = meshgrid(-5:meshSize:5, -5:meshSize:5);
     X = reshape(X, 1, []);
     Y = reshape(Y, 1, []);
-    
-    map = occupancyMap(30, 30, 10);
+
+    mapSize = [15, 15];
+    mapPrec = 10;
+
+    map = occupancyMap(mapSize(1) * 2, mapSize(2) * 2, mapPrec);
 
     %% Initial position and orientation
     
@@ -82,7 +85,7 @@ function youbot_moving()
     vrchk(vrep, res, true);
 
     % Initial values
-    initPos = youbotPos - [15 15 0];
+    initPos = youbotPos - [mapSize(1), mapSize(2), 0];
     initA1 = youbotEuler(1);
     initA2 = youbotEuler(2);
     initA3 = youbotEuler(3);
@@ -104,6 +107,7 @@ function youbot_moving()
     % Define the objective list
     objectiveList = {
         {'rotate', pi},
+        {'forward', [youbotPos(1), youbotPos(2) + 1]},
         {'finished', 0}
     };
 
@@ -202,7 +206,7 @@ function youbot_moving()
         subplot(2, 2, 2);
         contour(flipud(occupancyMatrix(map, 'ternary')));
         hold on;
-        plot(round(pos(1) * 10), round(pos(2) * 10), 'or', 'markersize', 10);
+        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
         hold off;
         
         subplot(2, 2, 3);
@@ -344,8 +348,18 @@ function youbot_moving()
                 currentObj = currentObj + 1;
                 hasAccCurrentObj = false;
 
-                % DETERMINE AND PUSH NEXT OBJECTIVE(S) HERE
-                nextPoint = utils.find_closest([round(pos(1) * 10), round(pos(2) * 10)], flipud(occupancyMatrix(map, 'ternary')));
+                %% DETERMINE AND PUSH NEXT OBJECTIVE(S) HERE
+                nextPoint = utils.find_closest([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], flipud(occupancyMatrix(map, 'ternary')));
+
+                subplot(2, 2, 4);
+                show(map);
+                hold on;
+                plot(round(nextPoint(1) / mapPrec), round(nextPoint(2) / mapPrec), '*r', 'markersize', 10);
+                title('Next point to explore');
+                hold off;
+
+                drawnow;
+                %%
                 
                 action = objectiveList{currentObj}{1};
                 objective = objectiveList{currentObj}{2};
