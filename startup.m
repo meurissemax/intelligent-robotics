@@ -2,13 +2,17 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-%% Setup
+%%%%%%%%%%%
+%% Setup %%
+%%%%%%%%%%%
 
 % Suppress warning messages
 warning('off', 'all');
 
 
-%% TRS
+%%%%%%%%%
+%% TRS %%
+%%%%%%%%%
 
 % Launch the startup script of TRS
 run('trs/matlab/startup_robot.m');
@@ -17,7 +21,9 @@ run('trs/matlab/startup_robot.m');
 addpath(genpath('trs/'));
 
 
-%% Milestones
+%%%%%%%%%%%%%%%%
+%% Milestones %%
+%%%%%%%%%%%%%%%%
 
 % Add to path the milestone files
 addpath(genpath('navigation/'));
