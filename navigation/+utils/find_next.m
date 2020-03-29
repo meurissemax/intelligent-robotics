@@ -2,19 +2,20 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function closest = find_closest(pos, occMat)
-    % Returns the closest inexplored point in 'occMat'
+function next = find_next(pos, occMat)
+    % Returns the next inexplored point in 'occMat'
     % from 'pos'.
     %
-    % 'pos' is a position (x, y) in 'occMat'
+    % 'pos' is a position (i, j) in 'occMat'
     % 'occMat' is a ternary occupancy matrix
 
     % We get the occupancy matrix size
     sizeX = size(occMat, 1);
     sizeY = size(occMat, 2);
 
-    % We initialize the distance
-    maxDist = Inf;
+    % We initialize the distance and the threshold
+    minDist = -Inf;
+    threshDist = 5;
 
     % We iterate over each point of the occupancy matrix
     for i = 1:sizeX
@@ -38,11 +39,11 @@ function closest = find_closest(pos, occMat)
 
                 % If the inexplored point is a valid possible candidate
                 if hasFreeNeighbor
-                    d = pdist2([i, j], pos, 'euclidean');
+                    d = pdist2([j, i], pos, 'euclidean');
 
-                    if d < maxDist
-                        maxDist = d;
-                        closest = [j, i];
+                    if d > minDist && d >= threshDist
+                        minDist = d;
+                        next = [j, i];
                     end
                 end
             end

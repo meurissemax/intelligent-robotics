@@ -105,19 +105,10 @@ function youbot_moving()
     %%%%%%%%%%%%%%%%%%%%
 
     % Define the objective list
-    objectiveList = {
-        {'rotate', pi},
-        {'forward', [youbotPos(1), youbotPos(2) + 1]},
-        {'finished', 0}
-    };
-
-    % Initialise the next objective position
-    currentObj = 1;
-    hasAccCurrentObj = false;
-
-    % Get the initial action and objective
-    action = objectiveList{currentObj}{1};
-    objective = objectiveList{currentObj}{2};
+    objectiveList = {};
+    
+    % Initialise the flag for the current objective
+    hasAccCurrentObj = true;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -132,14 +123,6 @@ function youbot_moving()
 
     fprintf('List of actions\n');
     fprintf('---------------\n');
-
-    if any(strcmp(action, displacementActions))
-        fprintf('First action is "%s" with objective (%f, %f)\n', action, objective(1), objective(2));
-    elseif any(strcmp(action, rotationActions))
-        fprintf('First action is "%s" with objective %f\n', action, objective);
-    else
-        fprintf('Unknown first action.\n');
-    end
 
     % Make sure everything is settled before we start
     pause(2);
@@ -196,30 +179,29 @@ function youbot_moving()
         setOccupancy(map, inValue, 0);
         setOccupancy(map, inPts, 1);
 
+        % Get the occupancy matrix
+        occMat = occupancyMatrix(map, 'ternary');
+
         % Show the map
-        subplot(2, 2, 1);
-        show(map);
+        subplot(2, 1, 1);
+
+        [x_free, y_free] = find(occMat == 0);
+        plot(y_free, x_free, '.g');
         hold on;
-        plot(round(pos(1)), round(pos(2)), 'or', 'markersize', 10);
-        hold off;
+
+        [x_occ, y_occ] = find(occMat == 1);
+        plot(y_occ, x_occ, '*r');
+        hold on;
         
-        subplot(2, 2, 2);
-        contour(flipud(occupancyMatrix(map, 'ternary')));
-        hold on;
         plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
         hold off;
-        
-        subplot(2, 2, 3);
-        plot(round(pos(1)), round(pos(2)), 'or', 'markersize', 10);
-        hold on;
-        plot(round(inValue(:, 1), 1), round(inValue(:, 2), 1), '.g', 'markersize', 10);
-        hold on;
-        plot(round(inPts(:, 1), 1), round(inPts(:, 2), 1), '.r', 'markersize', 10);
-        hold off;
+
+        axis([0, mapSize(1) * 10 * 2, 0, mapSize(2) * 10 * 2]);
+        title('Explored map');
 
         drawnow;
 
-        
+
         %%%%%%%%%%%%%%%%%%%%%%%%%%
         %% Finite state machine %%
         %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -229,6 +211,103 @@ function youbot_moving()
         % In this state, the robot will explore the map in order to
         % construct an appropriate representation.
         if strcmp(state, 'navigation')
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% Define new objective(s) %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            % If the robot has accomplished his objective.
+            if hasAccCurrentObj
+
+                % If there remains no objective in the list
+                if length(objectiveList) == 0
+
+                    % If the whole map is explored, we can stop the robot.
+                    if utils.is_map_explored(occMat, mapSize, mapPrec)
+                        action = 'finished';
+                        objective = [0, 0];
+
+                    % If the whole map is not yet fully explored,
+                    % we define new objective(s).
+                    else
+                        % Determine next nearest inexplorated point
+                        mapInflated = copy(map);
+                        inflate(mapInflated, 0.2);
+
+                        nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occupancyMatrix(mapInflated, 'ternary'));
+
+                        % Determine path to this point
+                        prm = mobileRobotPRM;
+                        prm.Map = map;
+                        prm.NumNodes = 10;
+                        prm.ConnectionDistance = 5;
+
+                        % Get the path
+                        startPoint = [pos(1), pos(2)];
+                        stopPoint = [nextPoint(1) / 10, nextPoint(2) / 10];
+
+                        %{
+                        path = findpath(prm, double(startPoint), double(stopPoint));
+                        
+                        while isempty(path)
+                            % No feasible path found yet, increase the number of nodes
+                            prm.NumNodes = prm.NumNodes + 10;
+                            
+                            % Use the |update| function to re-create the PRM roadmap with the changed
+                            % attribute
+                            update(prm);
+                            
+                            % Search for a feasible path with the updated PRM
+                            path = findpath(prm, double(startPoint), double(stopPoint));
+                        end
+                        %}
+                        
+                        % Plot the path
+                        subplot(2, 1, 2);
+
+                        plot(y_free, x_free, '.g');
+                        hold on;
+                        
+                        plot(y_occ, x_occ, '*r');
+                        hold on;
+                        
+                        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
+                        hold on;
+
+                        plot(nextPoint(1), nextPoint(2), '*b', 'markersize', 10);
+                        hold off;
+
+                        title('Next objective');
+                        
+                        drawnow;
+
+                        %% DETERMINE AND GET NEXT ACTION AND OBJECTIVE HERE
+
+                        % Temporary - TO REPLACE
+                        action = 'finished';
+                        objective = [0, 0];
+                    end
+
+                % If there is still objective(s) in the list
+                else
+                    action = objectiveList{1}{1};
+                    objective = objectiveList{1}{2};
+                    
+                    objectiveList(1) = [];
+                end
+
+                % Reset the flag
+                hasAccCurrentObj = false;
+
+                % Print action and objective information
+                if strcmp(action, 'finished')
+                    fprintf('[position : (%f, %f)] - Next action is "%s"\n', youbotPos(1), youbotPos(2), action);
+                elseif any(strcmp(action, displacementActions))
+                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', youbotPos(1), youbotPos(2), action, objective(1), objective(2));
+                elseif any(strcmp(action, rotationActions))
+                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective %f\n', youbotPos(1), youbotPos(2), action, objective);
+                end
+            end
 
             %%%%%%%%%%%%%%%%%%%%%%%%%%%
             %% Distance to objective %%
@@ -295,7 +374,7 @@ function youbot_moving()
             elseif strcmp(action, 'rotate')
 
                 % Set the rotation velocity of the robot.
-                rotVel = angdiff(objective, youbotEuler(3));
+                rotVel = angdiff(objective, youbotEuler(3)) / 3;
 
 
             %%%%%%%%%%%%%%%%%%%%%%%
@@ -341,37 +420,6 @@ function youbot_moving()
             % If we are in an unknown action.
             else
                 action = 'finished';
-            end
-
-            % If the robot has accomplished his objective.
-            if hasAccCurrentObj
-                currentObj = currentObj + 1;
-                hasAccCurrentObj = false;
-
-                %% DETERMINE AND PUSH NEXT OBJECTIVE(S) HERE
-                nextPoint = utils.find_closest([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], flipud(occupancyMatrix(map, 'ternary')));
-
-                subplot(2, 2, 4);
-                show(map);
-                hold on;
-                plot(round(nextPoint(1) / mapPrec), round(nextPoint(2) / mapPrec), '*r', 'markersize', 10);
-                title('Next point to explore');
-                hold off;
-
-                drawnow;
-                %%
-                
-                action = objectiveList{currentObj}{1};
-                objective = objectiveList{currentObj}{2};
-
-                % Print action and objective information
-                if strcmp(action, 'finished')
-                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s"\n', youbotPos(1), youbotPos(2), action);
-                elseif any(strcmp(action, displacementActions))
-                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', youbotPos(1), youbotPos(2), action, objective(1), objective(2));
-                elseif any(strcmp(action, rotationActions))
-                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s" with objective %f\n', youbotPos(1), youbotPos(2), action, objective);
-                end
             end
 
         %% Unknown state
