@@ -37,10 +37,10 @@ function youbot_moving()
     h = youbot_hokuyo_init(vrep, h);
 
     % Make sure everything is settled before we start (wait for the simulation to start).
-    pause(.2);
+    pause(0.2);
 
     % The time step the simulator is using (your code should run close to it).
-    timestep = .05;
+    timestep = 0.05;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -52,9 +52,14 @@ function youbot_moving()
     %% Parameters for controlling the youBot's wheels
     
     % At each iteration, those values will be set for the wheels
-    forwBackVel = 0; % Move straight ahead
-    rightVel = 0; % Go sideways
-    rotateRightVel = 0; % Rotate 
+    forwBackVel = 0;
+    leftRightVel = 0;
+    rotVel = 0;
+
+    %% Parameters for the movements
+
+    movPrecision = 0.1;
+    rotPrecision = 0.002;
 
     %% Map and meshgrid
 
@@ -87,9 +92,33 @@ function youbot_moving()
     % Initial state of the FSM
     state = 'navigation';
 
-    % Initial values for state 'navigation'
-    action = 'forward'
-    has_rotate = false;
+    % List of actions classed by categories
+    displacementActions = {'forward', 'backward', 'left', 'right'};
+    rotationActions = {'rotate'};
+
+
+    %%%%%%%%%%%%%%%%%%%%
+    %% Objective list %%
+    %%%%%%%%%%%%%%%%%%%%
+
+    % Define the objective list
+    objectiveList = {
+        {'rotate', pi},
+        {'finished', 0}
+    };
+
+    % Initialise the next objective position
+    currentObj = 1;
+    hasAccCurrentObj = false;
+
+    % Get the initial action and objective
+    action = objectiveList{currentObj}{1};
+    objective = objectiveList{currentObj}{2};
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Display information %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%
 
     fprintf('\n***************************************\n');
     fprintf('* The robot begins state "%s" *\n', state);
@@ -99,7 +128,14 @@ function youbot_moving()
 
     fprintf('List of actions\n');
     fprintf('---------------\n');
-    fprintf('First action is : %s\n', action);
+
+    if any(strcmp(action, displacementActions))
+        fprintf('First action is "%s" with objective (%f, %f)\n', action, objective(1), objective(2));
+    elseif any(strcmp(action, rotationActions))
+        fprintf('First action is "%s" with objective %f\n', action, objective);
+    else
+        fprintf('Unknown first action.\n');
+    end
 
     % Make sure everything is settled before we start
     pause(2);
@@ -148,20 +184,29 @@ function youbot_moving()
         inValue = homtrans(trf, [X(in); Y(in); zeros(1, size(X(in), 2))]);
         inValue = transpose([inValue(1, :); inValue(2, :)]);
 
-        setOccupancy(map, inValue, 0);
-
         % Transforming 'pts' to absolute reference
         inPts = homtrans(trf, [pts(1, cts); pts(2, cts); zeros(1, size(pts(1, cts), 2))]);
         inPts = transpose([inPts(1, :); inPts(2, :)]);
 
+        % Update the map
+        setOccupancy(map, inValue, 0);
         setOccupancy(map, inPts, 1);
 
         % Show the map
-        subplot(2, 1, 1);
+        subplot(2, 2, 1);
         show(map);
+        hold on;
+        plot(round(pos(1)), round(pos(2)), 'or', 'markersize', 10);
+        hold off;
         
-        subplot(2, 1, 2);
-        plot(round(pos(1), 1), round(pos(2), 2), 'or', 'markersize', 10);
+        subplot(2, 2, 2);
+        contour(flipud(occupancyMatrix(map, 'ternary')));
+        hold on;
+        plot(round(pos(1) * 10), round(pos(2) * 10), 'or', 'markersize', 10);
+        hold off;
+        
+        subplot(2, 2, 3);
+        plot(round(pos(1)), round(pos(2)), 'or', 'markersize', 10);
         hold on;
         plot(round(inValue(:, 1), 1), round(inValue(:, 2), 1), '.g', 'markersize', 10);
         hold on;
@@ -181,27 +226,32 @@ function youbot_moving()
         % construct an appropriate representation.
         if strcmp(state, 'navigation')
 
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% Distance to objective %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            % If we are in a displacement action
+            if any(strcmp(action, displacementActions))
+                distObj = [abs(youbotPos(1) - objective(1)), abs(youbotPos(2) - objective(2))];
+
+            % If we are in a rotation action
+            elseif any(strcmp(action, rotationActions))
+                distObj = abs(angdiff(objective, youbotEuler(3)));
+
+            % If we are in an unknown action
+            else
+                distObj = 0;
+            end
+
+
             %%%%%%%%%%%%%%%%%%%%%%
             %% Action 'forward' %%
             %%%%%%%%%%%%%%%%%%%%%%
 
             if strcmp(action, 'forward')
                 
-                % Make the robot drive with a constant speed (very simple controller, likely to overshoot). 
-                % The speed is - 1 m/s, the sign indicating the direction to follow. Please note that the robot has
-                % limitations and cannot reach an infinite speed. 
-                forwBackVel = -1;
-                
-                % Stop when the robot is close to y = - 6.5. The tolerance has been determined by experiments: if it is too
-                % small, the condition will never be met (the robot position is updated every 50 ms); if it is too large,
-                % then the robot is not close enough to the position (which may be a problem if it has to pick an object,
-                % for example). 
-                if abs(youbotPos(2) + 6.5) < .1
-                    forwBackVel = 0;
-                    action = 'backward';
-                    
-                    fprintf('Next action is : %s\n', action);
-                end
+                % Set the forward/backward velocity of the robot.
+                forwBackVel = -1 * sum(distObj);
 
             
             %%%%%%%%%%%%%%%%%%%%%%%
@@ -210,18 +260,18 @@ function youbot_moving()
 
             elseif strcmp(action, 'backward')
 
-                % A speed which is a function of the distance to the destination can also be used. This is useful to avoid
-                % overshooting : with this controller, the speed decreases when the robot approaches the goal. 
-                % Here, the goal is to reach y = -4.5. 
-                forwBackVel = - 2 * (youbotPos(2) + 4.5);
+                % Set the forward/backward velocity of the robot.
+                forwBackVel = 1 * sum(distObj);
+
+            
+            %%%%%%%%%%%%%%%%%%%
+            %% Action 'left' %%
+            %%%%%%%%%%%%%%%%%%%
+
+            elseif strcmp(action, 'left')
                 
-                % Stop when the robot is close to y = 4.5. 
-                if abs(youbotPos(2) + 4.5) < .1
-                    forwBackVel = 0;
-                    action = 'right';
-                    
-                    fprintf('Next action is : %s\n', action);
-                end
+                % Set the left/right velocity of the robot.
+                leftRightVel = 1 * sum(distObj);
 
 
             %%%%%%%%%%%%%%%%%%%%
@@ -230,60 +280,18 @@ function youbot_moving()
 
             elseif strcmp(action, 'right')
                 
-                % Move sideways, again with a proportional controller (goal: x = - 4.5). 
-                rightVel = - 2 * (youbotPos(1) + 4.5);
-                
-                % Stop at x = - 4.5
-                if abs(youbotPos(1) + 4.5) < .1
-                    rightVel = 0;
-                    action = 'rotateRight';
-                    
-                    fprintf('Next action is : %s\n', action);
-                end
+                % Set the left/right velocity of the robot.
+                leftRightVel = -1 * sum(distObj);
 
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%
-            %% Action 'rotateRight' %%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%
-
-            elseif strcmp(action, 'rotateRight')
-
-                % Rotate until the robot has an angle of -pi/2 (measured with respect to the world's reference frame). 
-                % Again, use a proportional controller. In case of overshoot, the angle difference will change sign, 
-                % and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots, 
-                % the anguler speed becomes negative). 
-                % youbotEuler(3) is the rotation around the vertical axis. 
-                rotateRightVel = angdiff(- pi / 2, youbotEuler(3)); % angdiff ensures the difference is between -pi and pi. 
-                
-                % Stop when the robot is at an angle close to -pi/2. 
-                if abs(angdiff(- pi / 2, youbotEuler(3))) < .002
-                    rotateRightVel = 0;
-                    action = 'finished';
-                    
-                    fprintf('Next action is : %s\n', action);
-                end
-
-            
             %%%%%%%%%%%%%%%%%%%%%
             %% Action 'rotate' %%
             %%%%%%%%%%%%%%%%%%%%%
 
             elseif strcmp(action, 'rotate')
 
-                % Rotate until the robot has an angle of 2 pi (measured with respect to the world's reference frame). 
-                % Again, use a proportional controller. In case of overshoot, the angle difference will change sign, 
-                % and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots, 
-                % the anguler speed becomes negative). 
-                % youbotEuler(3) is the rotation around the vertical axis. 
-                rotateRightVel = angdiff(2 * pi, youbotEuler(3)); % angdiff ensures the difference is between -pi and pi. 
-                
-                % Stop when the robot is at an angle close to 2 pi. 
-                if abs(angdiff(2 * pi, youbotEuler(3))) < .002
-                    rotateRightVel = 0;
-                    action = 'finished';
-                    
-                    fprintf('Next action is : %s\n', action);
-                end
+                % Set the rotation velocity of the robot.
+                rotVel = angdiff(objective, youbotEuler(3));
 
 
             %%%%%%%%%%%%%%%%%%%%%%%
@@ -301,8 +309,61 @@ function youbot_moving()
             %%%%%%%%%%%%%%%%%%%%
 
             else
-                error('Unknown action %s.', action)
+                error('Unknown action %s.', action);
             end
+
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% Verification of the objective %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            % If we are in a displacement action.
+            if any(strcmp(action, displacementActions))
+                if distObj(1) < movPrecision && distObj(2) < movPrecision
+                    forwBackVel = 0;
+                    leftRightVel = 0;
+
+                    hasAccCurrentObj = true;
+                end
+
+            % If we are in a rotation action.
+            elseif any(strcmp(action, rotationActions))
+                if abs(angdiff(objective, youbotEuler(3))) < rotPrecision
+                    rotVel = 0;
+                    
+                    hasAccCurrentObj = true;
+                end
+
+            % If we are in an unknown action.
+            else
+                action = 'finished';
+            end
+
+            % If the robot has accomplished his objective.
+            if hasAccCurrentObj
+                currentObj = currentObj + 1;
+                hasAccCurrentObj = false;
+
+                % DETERMINE AND PUSH NEXT OBJECTIVE(S) HERE
+                nextPoint = utils.find_closest([round(pos(1) * 10), round(pos(2) * 10)], flipud(occupancyMatrix(map, 'ternary')));
+                
+                action = objectiveList{currentObj}{1};
+                objective = objectiveList{currentObj}{2};
+
+                % Print action and objective information
+                if strcmp(action, 'finished')
+                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s"\n', youbotPos(1), youbotPos(2), action);
+                elseif any(strcmp(action, displacementActions))
+                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', youbotPos(1), youbotPos(2), action, objective(1), objective(2));
+                elseif any(strcmp(action, rotationActions))
+                    fprintf('Objective accomplished [position : (%f, %f)] - Next action is "%s" with objective %f\n', youbotPos(1), youbotPos(2), action, objective);
+                end
+            end
+
+        %% Unknown state
+
+        else
+            error('Unknown state %s.', state);
         end
 
 
@@ -311,7 +372,7 @@ function youbot_moving()
         %%%%%%%%%%%%%%%%%%%%%%%%
         
         % Wheel velocities.
-        h = youbot_drive(vrep, h, forwBackVel, rightVel, rotateRightVel);
+        h = youbot_drive(vrep, h, forwBackVel, leftRightVel, rotVel);
 
 
         %%%%%%%%%%%%%%%%%%%%%%%%%
