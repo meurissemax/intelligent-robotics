@@ -46,6 +46,8 @@ function youbot_moving()
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Values initialisation %%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    disp('Starting robot');
     
     %% Parameters for controlling the youBot's wheels
     
@@ -53,15 +55,41 @@ function youbot_moving()
     forwBackVel = 0; % Move straight ahead
     rightVel = 0; % Go sideways
     rotateRightVel = 0; % Rotate 
+
+    %% Map and meshgrid
+
+    meshSize = 0.1;
+
+    [X, Y] = meshgrid(-5:meshSize:5, -5:meshSize:5);
+    X = reshape(X, 1, []);
+    Y = reshape(Y, 1, []);
     
-    % Make sure everything is settled before we start
-    pause(2);
+    map = occupancyMap(30, 30, 10);
+
+    %% Initial position and orientation
+    
+    % Position
+    [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+    
+    % Orientation
+    [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+
+    % Initial values
+    initPos = youbotPos - [15 15 0];
+    initA1 = youbotEuler(1);
+    initA2 = youbotEuler(2);
+    initA3 = youbotEuler(3);
 
     %% Finite state machine
 
-    % Initial state of the FSM and initial action for this state
+    % Initial state of the FSM
     state = 'navigation';
-    action = 'forward';
+
+    % Initial values for state 'navigation'
+    action = 'forward'
+    has_rotate = false;
 
     fprintf('\n***************************************\n');
     fprintf('* The robot begins state "%s" *\n', state);
@@ -72,6 +100,9 @@ function youbot_moving()
     fprintf('List of actions\n');
     fprintf('---------------\n');
     fprintf('First action is : %s\n', action);
+
+    % Make sure everything is settled before we start
+    pause(2);
 
 
     %%%%%%%%%%%%%%%
@@ -85,8 +116,11 @@ function youbot_moving()
         if vrep.simxGetConnectionId(id) == -1
             error('Lost connection to remote API.');
         end
-        
-        %% Position and orientation of the robot
+
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% Position and orientation of the robot %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Position
         [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
@@ -95,6 +129,46 @@ function youbot_moving()
         % Orientation
         [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
         vrchk(vrep, res, true);
+
+        % Update values
+        pos = youbotPos - initPos;
+        A1 = youbotEuler(1) - initA1;
+        A2 = youbotEuler(2) - initA2;
+        A3 = youbotEuler(3) - initA3;
+
+        % Transformation to robot absolute position
+        trf = transl(pos) * trotx(A1) * troty(A2) * trotz(A3);
+
+        % Point obtention (from Hokuyo)
+        [pts, cts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
+        simplifiedPoly = utils.simplify_polygon([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
+        in = inpolygon(X, Y, simplifiedPoly(1, :), simplifiedPoly(2, :));
+
+        % Transforming inside points to absolute reference
+        inValue = homtrans(trf, [X(in); Y(in); zeros(1, size(X(in), 2))]);
+        inValue = transpose([inValue(1, :); inValue(2, :)]);
+
+        setOccupancy(map, inValue, 0);
+
+        % Transforming 'pts' to absolute reference
+        inPts = homtrans(trf, [pts(1, cts); pts(2, cts); zeros(1, size(pts(1, cts), 2))]);
+        inPts = transpose([inPts(1, :); inPts(2, :)]);
+
+        setOccupancy(map, inPts, 1);
+
+        % Show the map
+        subplot(2, 1, 1);
+        show(map);
+        
+        subplot(2, 1, 2);
+        plot(round(pos(1), 1), round(pos(2), 2), 'or', 'markersize', 10);
+        hold on;
+        plot(round(inValue(:, 1), 1), round(inValue(:, 2), 1), '.g', 'markersize', 10);
+        hold on;
+        plot(round(inPts(:, 1), 1), round(inPts(:, 2), 1), '.r', 'markersize', 10);
+        hold off;
+
+        drawnow;
 
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -183,6 +257,28 @@ function youbot_moving()
                 
                 % Stop when the robot is at an angle close to -pi/2. 
                 if abs(angdiff(- pi / 2, youbotEuler(3))) < .002
+                    rotateRightVel = 0;
+                    action = 'finished';
+                    
+                    fprintf('Next action is : %s\n', action);
+                end
+
+            
+            %%%%%%%%%%%%%%%%%%%%%
+            %% Action 'rotate' %%
+            %%%%%%%%%%%%%%%%%%%%%
+
+            elseif strcmp(action, 'rotate')
+
+                % Rotate until the robot has an angle of 2 pi (measured with respect to the world's reference frame). 
+                % Again, use a proportional controller. In case of overshoot, the angle difference will change sign, 
+                % and the robot will correctly find its way back (e.g.: the angular speed is positive, the robot overshoots, 
+                % the anguler speed becomes negative). 
+                % youbotEuler(3) is the rotation around the vertical axis. 
+                rotateRightVel = angdiff(2 * pi, youbotEuler(3)); % angdiff ensures the difference is between -pi and pi. 
+                
+                % Stop when the robot is at an angle close to 2 pi. 
+                if abs(angdiff(2 * pi, youbotEuler(3))) < .002
                     rotateRightVel = 0;
                     action = 'finished';
                     
