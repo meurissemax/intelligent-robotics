@@ -10,5 +10,5 @@ function [x, y] = mat_to_cart(i, j, height)
     % 'height' the height (number of lines) of the matrix
 
     x = j;
-    y = height - i;
+    y = height - (i - 1);
 end

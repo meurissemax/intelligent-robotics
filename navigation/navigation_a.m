@@ -59,7 +59,7 @@ function navigation_a()
     %% Parameters for the movements
 
     movPrecision = 0.5;
-    rotPrecision = 0.002;
+    rotPrecision = 0.005;
 
     %% Map and meshgrid
 
@@ -100,15 +100,18 @@ function navigation_a()
     rotationActions = {'rotate'};
 
 
-    %%%%%%%%%%%%%%%%%%%%
-    %% Objective list %%
-    %%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Objective list and path %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     % Define the objective list
     objectiveList = {};
     
     % Initialise the flag for the current objective
     hasAccCurrentObj = true;
+
+    % Define the path
+    path = [];
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -224,92 +227,93 @@ function navigation_a()
             % If the robot has accomplished his objective.
             if hasAccCurrentObj
 
-                % If there remains no objective in the list
+                % If there remains no objective in the list.
                 if length(objectiveList) == 0
 
-                    % If the whole map is explored, we can stop the robot.
-                    if utils.is_map_explored(occMat, mapSize, mapPrec)
-                        action = 'finished';
-                        objective = [0, 0];
+                    % If there remains no points in the path.
+                    if length(path) == 0
 
-                    % If the whole map is not yet fully explored,
-                    % we define new objective(s).
-                    else
-                        % Determine next nearest inexplorated point
-                        mapInflated = copy(map);
-                        inflate(mapInflated, 0.4);
-                        occMatInf = occupancyMatrix(mapInflated, 'ternary');
-                        
-                        nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
-                        [xNext, yNext] = utils.mat_to_cart(nextPoint(1), nextPoint(2), size(occMat, 1));
-                        
-                        % Get the path to this point
-                        startPoint = [round(pos(1) * 10), round(pos(2) * 10)];
-                        stopPoint = [nextPoint(1), nextPoint(2)];
-                        
-                        goalPoint = zeros(size(occMat));
-                        goalPoint(stopPoint(1), stopPoint(2)) = 1;
+                        % If the whole map is explored, we can stop the robot.
+                        if utils.is_map_explored(occMat, mapSize, mapPrec)
+                            action = 'finished';
+                            objective = [0, 0];
 
-                        fprintf('HAVE TO FIND A PATH\n');
-                        path = utils.a_star(startPoint(1), startPoint(2), occMatInf, goalPoint, 2);
-                        pause(5);
-                        
-                        % Plot the path
-                        subplot(2, 1, 2);
-
-                        plot(x_free, y_free, '.g');
-                        hold on;
-                        
-                        plot(x_occ, y_occ, '*r');
-                        hold on;
-                        
-                        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
-                        hold on;
-
-                        plot(xNext, yNext, '*b', 'markersize', 10);
-                        hold on;
-
-                        for i = 1:size(path, 1)
-                            [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
-
-                            plot(xObj, yObj, '*b');
-                            hold on;
-                        end
-
-                        hold off;
-
-                        axis([0, mapSize(1) * 10 * 2, 0, mapSize(2) * 10 * 2]);
-                        title('Next objective');
-                        
-                        drawnow;
-                        
-                        % Determine the list of objectives to follow the path
-                        startPos = pos;
-                        
-                        for i = size(path, 1):-1:1
-                            [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
-
-                            % Cosine of two vectors
-                            a = [0 -1]; % Downwards vector
-                            b = [(xObj / 10) - startPos(1), (yObj / 10) - startPos(2)]; % Direction vector to given path point
-
-                            rotAngl = sign((xObj / 10) - startPos(1)) * acos(sum(a .* b) / norm(b));
-
-                            objective = {'rotate', rotAngl};
-                            objectiveList{end + 1} = objective;
-
-                            objective = {'forward', [(xObj / 10), (yObj / 10)]};
-                            objectiveList{end + 1} = objective;
+                        % If the whole map is not yet fully explored,
+                        % we define a new path.
+                        else
+                            % Determine next nearest inexplorated point
+                            mapInflated = copy(map);
+                            inflate(mapInflated, 0.3);
+                            occMatInf = occupancyMatrix(mapInflated, 'ternary');
                             
-                            startPos = [(xObj / 10), (yObj / 10)];
-                        end
+                            nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
+                            [xNext, yNext] = utils.mat_to_cart(nextPoint(1), nextPoint(2), size(occMat, 1));
+                            
+                            % Get the path to this point
+                            startPoint = [size(occMat, 1) - round(pos(2) * 10) + 1, round(pos(1) * 10)];
+                            stopPoint = [nextPoint(1), nextPoint(2)];
+                            
+                            goalPoint = zeros(size(occMat));
+                            goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
-                        % Get the following objective
-                        action = objectiveList{1}{1};
-                        objective = objectiveList{1}{2};
-                    
-                        objectiveList(1) = [];
+                            path = utils.a_star(startPoint(2), startPoint(1), occMat, goalPoint, 10);
+                            
+                            % Plot the path
+                            subplot(2, 1, 2);
+
+                            [i_free, j_free] = find(occMatInf == 0);
+                            [x_free, y_free] = utils.mat_to_cart(i_free, j_free, size(occMat, 1));
+                            plot(x_free, y_free, '.g');
+                            hold on;
+
+                            [i_occ, j_occ] = find(occMatInf == 1);
+                            [x_occ, y_occ] = utils.mat_to_cart(i_occ, j_occ, size(occMat, 1));
+                            plot(x_occ, y_occ, '*r');
+                            hold on;
+                            
+                            plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
+                            hold on;
+
+                            plot(xNext, yNext, '*b', 'markersize', 10);
+                            hold on;
+
+                            for i = 1:size(path, 1)
+                                [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
+
+                                plot(xObj, yObj, '+m', 'markersize', 5);
+                                hold on;
+                            end
+
+                            hold off;
+
+                            axis([0, mapSize(1) * 10 * 2, 0, mapSize(2) * 10 * 2]);
+                            title('Next objective');
+                            
+                            drawnow;
+                        end
                     end
+                    
+                    % Determine next objective to follow the path
+                    [xObj, yObj] = utils.mat_to_cart(path(end, 1), path(end, 2), size(occMat, 1));
+
+                    a = [0 -1];
+                    b = [(xObj / 10) - pos(1), (yObj / 10) - pos(2)];
+
+                    rotAngl = sign((xObj / 10) - pos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
+
+                    objective = {'rotate', rotAngl};
+                    objectiveList{end + 1} = objective;
+
+                    objective = {'forward', [(xObj / 10), (yObj / 10)]};
+                    objectiveList{end + 1} = objective;
+
+                    path(end, :) = [];
+
+                    % Get the following objective
+                    action = objectiveList{1}{1};
+                    objective = objectiveList{1}{2};
+                
+                    objectiveList(1) = [];
 
                 % If there is still objective(s) in the list
                 else
@@ -328,7 +332,7 @@ function navigation_a()
                 elseif any(strcmp(action, displacementActions))
                     fprintf('[position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', pos(1), pos(2), action, objective(1), objective(2));
                 elseif any(strcmp(action, rotationActions))
-                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective %f\n', pos(1), pos(2), action, objective);
+                    fprintf('[orientation : %f] - Next action is "%s" with objective %f\n', rad2deg(youbotEuler(3)), action, rad2deg(objective));
                 end
             end
 
