@@ -123,6 +123,9 @@ function navigation_a()
 
     fprintf('List of actions\n');
     fprintf('---------------\n');
+    
+    % We reset possible previous figure(s)
+    clf;
 
     % Make sure everything is settled before we start
     pause(2);
@@ -233,34 +236,18 @@ function navigation_a()
                         % Determine next nearest inexplorated point
                         mapInflated = copy(map);
                         inflate(mapInflated, 0.2);
-
-                        nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occupancyMatrix(mapInflated, 'ternary'));
-
-                        % Determine path to this point
-                        prm = mobileRobotPRM;
-                        prm.Map = map;
-                        prm.NumNodes = 10;
-                        prm.ConnectionDistance = 5;
-
-                        % Get the path
-                        startPoint = [pos(1), pos(2)];
-                        stopPoint = [nextPoint(1) / 10, nextPoint(2) / 10];
-
-                        %{
-                        path = findpath(prm, double(startPoint), double(stopPoint));
+                        occMatInf = occupancyMatrix(mapInflated, 'ternary');
                         
-                        while isempty(path)
-                            % No feasible path found yet, increase the number of nodes
-                            prm.NumNodes = prm.NumNodes + 10;
-                            
-                            % Use the |update| function to re-create the PRM roadmap with the changed
-                            % attribute
-                            update(prm);
-                            
-                            % Search for a feasible path with the updated PRM
-                            path = findpath(prm, double(startPoint), double(stopPoint));
-                        end
-                        %}
+                        nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
+                        
+                        % Get the path to this point
+                        startPoint = [round(pos(1) * 10), round(pos(2) * 10)];
+                        stopPoint = [nextPoint(1), nextPoint(2)];
+                        
+                        goalPoint = zeros(size(occMat));
+                        goalPoint(stopPoint(1), stopPoint(2)) = 1;
+                        
+                        path = utils.a_star(startPoint(1), startPoint(2), occMatInf, goalPoint, 15);
                         
                         % Plot the path
                         subplot(2, 1, 2);
@@ -275,17 +262,32 @@ function navigation_a()
                         hold on;
 
                         plot(nextPoint(1), nextPoint(2), '*b', 'markersize', 10);
+                        hold on;
+                        
+                        line(path(:, 1), path(:, 2), 'LineWidth', 2);
                         hold off;
 
+                        axis([0, mapSize(1) * 10 * 2, 0, mapSize(2) * 10 * 2]);
                         title('Next objective');
                         
                         drawnow;
 
-                        %% DETERMINE AND GET NEXT ACTION AND OBJECTIVE HERE
+                        % Determine the list of objectives to follow the path
+                        for i = 1:size(path, 1)
+                            rotAngl = - pi / 2;
 
-                        % Temporary - TO REPLACE
-                        action = 'finished';
-                        objective = [0, 0];
+                            objective = {'rotate', rotAngl};
+                            objectiveList{end + 1} = objective;
+
+                            objective = {'forward', [(path(i, 1) / 10), (path(i, 2) / 10)]};
+                            objectiveList{end + 1} = objective;
+                        end
+
+                        % Get the following objective
+                        action = objectiveList{1}{1};
+                        objective = objectiveList{1}{2};
+                    
+                        objectiveList(1) = [];
                     end
 
                 % If there is still objective(s) in the list
@@ -301,11 +303,11 @@ function navigation_a()
 
                 % Print action and objective information
                 if strcmp(action, 'finished')
-                    fprintf('[position : (%f, %f)] - Next action is "%s"\n', youbotPos(1), youbotPos(2), action);
+                    fprintf('[position : (%f, %f)] - Next action is "%s"\n', pos(1), pos(2), action);
                 elseif any(strcmp(action, displacementActions))
-                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', youbotPos(1), youbotPos(2), action, objective(1), objective(2));
+                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', pos(1), pos(2), action, objective(1), objective(2));
                 elseif any(strcmp(action, rotationActions))
-                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective %f\n', youbotPos(1), youbotPos(2), action, objective);
+                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective %f\n', pos(1), pos(2), action, objective);
                 end
             end
 
@@ -315,7 +317,7 @@ function navigation_a()
 
             % If we are in a displacement action
             if any(strcmp(action, displacementActions))
-                distObj = [abs(youbotPos(1) - objective(1)), abs(youbotPos(2) - objective(2))];
+                distObj = [abs(pos(1) - objective(1)), abs(pos(2) - objective(2))];
 
             % If we are in a rotation action
             elseif any(strcmp(action, rotationActions))

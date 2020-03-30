@@ -14,7 +14,7 @@ function next = find_next(pos, occMat)
     sizeY = size(occMat, 2);
 
     % We initialize the distance and the threshold
-    minDist = -Inf;
+    maxDist = Inf;
     threshDist = 5;
 
     % We iterate over each point of the occupancy matrix
@@ -41,8 +41,8 @@ function next = find_next(pos, occMat)
                 if hasFreeNeighbor
                     d = pdist2([j, i], pos, 'euclidean');
 
-                    if d > minDist && d >= threshDist
-                        minDist = d;
+                    if d < maxDist && d >= threshDist
+                        maxDist = d;
                         next = [j, i];
                     end
                 end
