@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function youbot_moving()
+function navigation_a()
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Simulator initialisation %%
