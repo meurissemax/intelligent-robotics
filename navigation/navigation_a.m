@@ -257,10 +257,8 @@ function navigation_a()
                             goalPoint = zeros(size(occMat));
                             goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
-                            fprintf('A NEW PATH HAS TO BE CALCULATED\n');
                             path = utils.a_star(startPoint(2), startPoint(1), occMatInf, goalPoint, 20);
-                            fprintf('Path calculated !\n');
-                            disp(path);
+                            path = utils.optimize_path(path);
                             
                             % Plot the path
                             subplot(2, 1, 2);
