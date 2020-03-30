@@ -17,7 +17,7 @@ function is_explored = is_map_explored(occMat, mapSize, mapPrec)
 
     % Percentage of points that we want to have discover to consider
     % that the map is fully explored
-    threshold = 0.9;
+    threshold = 0.98;
 
     % Count the number of points discovered (free and obstacle)
     free_pts = nnz(occMat == 0);

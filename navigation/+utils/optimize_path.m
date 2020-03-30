@@ -15,7 +15,7 @@ function optiPath = optimize_path(path)
 
     keep = false;
 
-    minDist = 30;
+    minDist = 15;
 
     for i = 2:size(path, 1)
         x = path(i, 1);
