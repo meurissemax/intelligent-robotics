@@ -58,7 +58,7 @@ function navigation_a()
 
     %% Parameters for the movements
 
-    movPrecision = 0.1;
+    movPrecision = 0.5;
     rotPrecision = 0.002;
 
     %% Map and meshgrid
@@ -187,13 +187,15 @@ function navigation_a()
 
         % Show the map
         subplot(2, 1, 1);
-
-        [x_free, y_free] = find(occMat == 0);
-        plot(y_free, x_free, '.g');
+        
+        [i_free, j_free] = find(occMat == 0);
+        [x_free, y_free] = utils.mat_to_cart(i_free, j_free, size(occMat, 1));
+        plot(x_free, y_free, '.g');
         hold on;
 
-        [x_occ, y_occ] = find(occMat == 1);
-        plot(y_occ, x_occ, '*r');
+        [i_occ, j_occ] = find(occMat == 1);
+        [x_occ, y_occ] = utils.mat_to_cart(i_occ, j_occ, size(occMat, 1));
+        plot(x_occ, y_occ, '*r');
         hold on;
         
         plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
@@ -235,10 +237,11 @@ function navigation_a()
                     else
                         % Determine next nearest inexplorated point
                         mapInflated = copy(map);
-                        inflate(mapInflated, 0.2);
+                        inflate(mapInflated, 0.4);
                         occMatInf = occupancyMatrix(mapInflated, 'ternary');
                         
                         nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
+                        [xNext, yNext] = utils.mat_to_cart(nextPoint(1), nextPoint(2), size(occMat, 1));
                         
                         % Get the path to this point
                         startPoint = [round(pos(1) * 10), round(pos(2) * 10)];
@@ -246,41 +249,59 @@ function navigation_a()
                         
                         goalPoint = zeros(size(occMat));
                         goalPoint(stopPoint(1), stopPoint(2)) = 1;
-                        
-                        path = utils.a_star(startPoint(1), startPoint(2), occMatInf, goalPoint, 15);
+
+                        fprintf('HAVE TO FIND A PATH\n');
+                        path = utils.a_star(startPoint(1), startPoint(2), occMatInf, goalPoint, 2);
+                        pause(5);
                         
                         % Plot the path
                         subplot(2, 1, 2);
 
-                        plot(y_free, x_free, '.g');
+                        plot(x_free, y_free, '.g');
                         hold on;
                         
-                        plot(y_occ, x_occ, '*r');
+                        plot(x_occ, y_occ, '*r');
                         hold on;
                         
                         plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
                         hold on;
 
-                        plot(nextPoint(1), nextPoint(2), '*b', 'markersize', 10);
+                        plot(xNext, yNext, '*b', 'markersize', 10);
                         hold on;
-                        
-                        line(path(:, 1), path(:, 2), 'LineWidth', 2);
+
+                        for i = 1:size(path, 1)
+                            [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
+
+                            plot(xObj, yObj, '*b');
+                            hold on;
+                        end
+
                         hold off;
 
                         axis([0, mapSize(1) * 10 * 2, 0, mapSize(2) * 10 * 2]);
                         title('Next objective');
                         
                         drawnow;
-
+                        
                         % Determine the list of objectives to follow the path
-                        for i = 1:size(path, 1)
-                            rotAngl = - pi / 2;
+                        startPos = pos;
+                        
+                        for i = size(path, 1):-1:1
+                            [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
+
+                            % Cosine of two vectors
+                            a = [0 -1]; % Downwards vector
+                            b = [(xObj / 10) - startPos(1), (yObj / 10) - startPos(2)]; % Direction vector to given path point
+
+                            rotAngl = acos(sum(a .* b) / norm(b));
 
                             objective = {'rotate', rotAngl};
                             objectiveList{end + 1} = objective;
 
-                            objective = {'forward', [(path(i, 1) / 10), (path(i, 2) / 10)]};
+                            objective = {'forward', [(xObj / 10), (yObj / 10)]};
                             objectiveList{end + 1} = objective;
+                            
+                            startPos = [(xObj / 10), (yObj / 10)];
                         end
 
                         % Get the following objective
@@ -413,7 +434,7 @@ function navigation_a()
 
             % If we are in a rotation action.
             elseif any(strcmp(action, rotationActions))
-                if abs(angdiff(objective, youbotEuler(3))) < rotPrecision
+                if distObj < rotPrecision
                     rotVel = 0;
                     
                     hasAccCurrentObj = true;

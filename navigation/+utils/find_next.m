@@ -15,7 +15,7 @@ function next = find_next(pos, occMat)
 
     % We initialize the distance and the threshold
     maxDist = Inf;
-    threshDist = 5;
+    threshDist = 20;
 
     % We iterate over each point of the occupancy matrix
     for i = 1:sizeX
