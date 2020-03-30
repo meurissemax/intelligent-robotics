@@ -293,7 +293,7 @@ function navigation_a()
                             a = [0 -1]; % Downwards vector
                             b = [(xObj / 10) - startPos(1), (yObj / 10) - startPos(2)]; % Direction vector to given path point
 
-                            rotAngl = acos(sum(a .* b) / norm(b));
+                            rotAngl = sign((xObj / 10) - startPos(1)) * acos(sum(a .* b) / norm(b));
 
                             objective = {'rotate', rotAngl};
                             objectiveList{end + 1} = objective;
