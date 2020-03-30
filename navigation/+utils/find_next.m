@@ -14,7 +14,7 @@ function next = find_next(pos, occMat)
     sizeY = size(occMat, 2);
 
     % We initialize the distance and the threshold
-    maxDist = Inf;
+    maxDist = -Inf;
     threshDist = 20;
 
     % We iterate over each point of the occupancy matrix
@@ -39,11 +39,11 @@ function next = find_next(pos, occMat)
 
                 % If the inexplored point is a valid possible candidate
                 if hasFreeNeighbor
-                    d = pdist2([j, i], pos, 'euclidean');
+                    d = pdist2([i, j], pos, 'euclidean');
 
-                    if d < maxDist && d >= threshDist
+                    if d > maxDist && d >= threshDist
                         maxDist = d;
-                        next = [j, i];
+                        next = [i, j];
                     end
                 end
             end

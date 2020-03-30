@@ -58,8 +58,8 @@ function navigation_a()
 
     %% Parameters for the movements
 
-    movPrecision = 0.5;
-    rotPrecision = 0.005;
+    movPrecision = 1;
+    rotPrecision = 0.05;
 
     %% Map and meshgrid
 
@@ -243,20 +243,24 @@ function navigation_a()
                         else
                             % Determine next nearest inexplorated point
                             mapInflated = copy(map);
-                            inflate(mapInflated, 0.3);
+                            inflate(mapInflated, 0.5);
                             occMatInf = occupancyMatrix(mapInflated, 'ternary');
                             
-                            nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
+                            %nextPoint = utils.find_next([round(pos(1) * mapPrec), round(pos(2) * mapPrec)], occMatInf);
+                            nextPoint = utils.find_next([size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)], occMatInf);
                             [xNext, yNext] = utils.mat_to_cart(nextPoint(1), nextPoint(2), size(occMat, 1));
                             
                             % Get the path to this point
-                            startPoint = [size(occMat, 1) - round(pos(2) * 10) + 1, round(pos(1) * 10)];
+                            startPoint = [size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)];
                             stopPoint = [nextPoint(1), nextPoint(2)];
                             
                             goalPoint = zeros(size(occMat));
                             goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
-                            path = utils.a_star(startPoint(2), startPoint(1), occMat, goalPoint, 10);
+                            fprintf('A NEW PATH HAS TO BE CALCULATED\n');
+                            path = utils.a_star(startPoint(2), startPoint(1), occMatInf, goalPoint, 20);
+                            fprintf('Path calculated !\n');
+                            disp(path);
                             
                             % Plot the path
                             subplot(2, 1, 2);
@@ -401,7 +405,7 @@ function navigation_a()
             elseif strcmp(action, 'rotate')
 
                 % Set the rotation velocity of the robot.
-                rotVel = angdiff(objective, youbotEuler(3)) / 3;
+                rotVel = angdiff(objective, youbotEuler(3));
 
 
             %%%%%%%%%%%%%%%%%%%%%%%
