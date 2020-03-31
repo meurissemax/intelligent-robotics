@@ -11,7 +11,4 @@
 #####################
 
 # TRS
-trs/
-
-# V-REP
-V-REP_PRO_EDU_V3_6_2_Mac/
+/matlab/trs/

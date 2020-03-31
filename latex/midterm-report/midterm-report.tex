@@ -1,0 +1,65 @@
+\documentclass[a4paper, 10pt, conference]{ieeeconf}
+
+
+%%%%%%%%%%%%
+% Packages %
+%%%%%%%%%%%%
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{tabularx}
+
+\usepackage{cite}
+
+\usepackage{layout}
+\usepackage{lipsum}
+
+
+%%%%%%%%%%%%
+% Settings %
+%%%%%%%%%%%%
+
+\makeatletter
+\def\title#1{\gdef\@title{\LARGE\bfseries#1}}
+\makeatother
+\setlength{\topmargin}{0pt}
+\setlength{\oddsidemargin}{-18pt}
+
+
+%%%%%%%%%%
+% Header %
+%%%%%%%%%%
+
+\title{INFO0948-1 : Midterm report}
+\author{Maxime \textsc{Meurisse} (s161278) \and Valentin \textsc{Vermeylen} (s162864)}
+
+
+%%%%%%%%%%%%
+% Document %
+%%%%%%%%%%%%
+
+\begin{document}
+    % ----- Header ----- %
+    
+    \maketitle
+    \thispagestyle{plain}
+    \pagestyle{plain}
+    
+    
+    % ----- Content ----- %
+    
+    \lipsum
+    Example of references for a YouTube video~\cite{BostonDynamics:2019aa}.
+    
+    
+    % ----- References ----- %
+    
+    \bibliographystyle{IEEEtran}
+    \bibliography{bibfile.bib}
+\end{document}
