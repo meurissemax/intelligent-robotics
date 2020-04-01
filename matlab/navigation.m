@@ -10,30 +10,36 @@ function navigation()
     %% General variables %%
     %%%%%%%%%%%%%%%%%%%%%%%
 
-    % The time step the simulator is using (your code should run close to it)
+    % The time step the simulator is using
     timestep = 0.05;
 
-    % Parameters for the movements
-    movPrecision = 0.6;
+    % Movements tolerances
+    movPrecision = 0.5;
     rotPrecision = 0.005;
 
-    % Map
+    % Map parameters
     mapSize = [15, 15];
     mapPrec = 5;
 
-    % Stuck threshold
+    % Parameters when the robot is stuck
     stuckTresh = 0.4;
-    stuckDist = 1;
+    stuckDist = 0.5;
 
-    % Velocity factors
+    % Velocity multipliers
     forwBackVelFact = 3;
     rotVelFact = 1;
 
     % Map inflation factor
     mapInflatedFact = 0.6;
 
-    % Exploration threshold
+    % Exploration threshold (percentage of points to visit)
     explThresh = 0.98;
+
+    % Possible connection distance between points for A*
+    pathDist = 10;
+
+    % Minimal distance to keep between points in path
+    optiDist = 15;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -116,17 +122,17 @@ function navigation()
         end
     end
 
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% FSM, objective list and path %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
     % Initial state of the Finite State Machine (FSM)
     state = 'navigation';
 
     % List of actions classed by categories
     displacementActions = {'forward', 'backward'};
     rotationActions = {'rotate'};
-
-
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Objective list and path %%
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     % Initialise the objective list
     objectiveList = {};
@@ -140,7 +146,7 @@ function navigation()
 
     % Define the path and its metric
     pathList = [];
-    pathMetric = 'shortest';
+    pathMetric = 'longest';
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -306,6 +312,7 @@ function navigation()
                             
                             nextPoint = utils.findNext([size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)], occMatInf, 15, pathMetric);
 
+                            % If we can not find new point, the map is probably explored
                             if nextPoint == Inf
                                 fprintf('No possible next point to explore. The map has been probably fully explored.\n');
                                 
@@ -323,10 +330,10 @@ function navigation()
                             goalPoint = zeros(size(occMat));
                             goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
-                            % Set stop to 0
+                            % Set stop point to 0 (to be sure that A* can reach it)
                             occMatInf(stopPoint(1), stopPoint(2)) = 0;
-
-                            % Set neighbors of start to 0
+                            
+                            % Set neighborhodd of start point to 0 (to be sure that A* can begin)
                             for x = startPoint(1) - 1:1:startPoint(1) + 1
                                 for y = startPoint(2) - 1:1:startPoint(2) + 1
                                     if x >= 1 && y >= 1 && x <= size(occMatInf, 1) && y <= size(occMatInf, 2) && (x ~= startPoint(1) || y ~= startPoint(2))
@@ -335,8 +342,39 @@ function navigation()
                                 end
                             end
 
-                            pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, 5);
-                            pathList = utils.optimizePath(pathList);
+                            % Calculate the path with A*
+                            pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
+
+                            hasFinished = false;
+                            reduceInflate = mapInflatedFact - 0.1;
+
+                            % If no path can be found, re try with more flexible map (less inflate)
+                            while pathList(1) == Inf
+                                mapInflated = copy(map);
+                                inflate(mapInflated, reduceInflate);
+                                occMatInf = occupancyMatrix(mapInflated, 'ternary');
+
+                                pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
+
+                                reduceInflate = reduceInflate - 0.1;
+
+                                % If inflate factor reach 0, not path is possible so stop the simulation
+                                if reduceInflate <= 0
+                                    fprintf('Unable to determine a path. Mapping will stop here.\n');
+
+                                    hasFinished = true;
+                                end
+                            end
+
+                            if hasFinished
+                                pause(3);
+
+                                break
+                            end
+
+                            % Optimize the path and remove the first point because it is the
+                            % position of the robot itself
+                            pathList = utils.optimizePath(pathList, optiDist);
                             pathList(end, :) = [];
                         end
                     end
@@ -346,7 +384,7 @@ function navigation()
                     % Get next objective
                     [xObj, yObj] = utils.matToCart(pathList(end, 1), pathList(end, 2), size(occMat, 1));
 
-                    % Get rotation angle to align the robot
+                    % Get rotation angle to align the robot with the objective
                     a = [0 -1];
                     b = [(xObj / mapPrec) - pos(1), (yObj / mapPrec) - pos(2)];
 
@@ -372,7 +410,7 @@ function navigation()
                 % Reset the flag
                 hasAccCurrentObj = false;
 
-                % Print action and objective information
+                % Print action and objective information (console debug)
                 if any(strcmp(action, displacementActions))
                     fprintf('[%s] [position : (%f, %f)] -> [objective : (%f, %f)]\n', upper(action), pos(1) * mapPrec, pos(2) * mapPrec, objective(1) * mapPrec, objective(2) * mapPrec);
                 elseif any(strcmp(action, rotationActions))
@@ -496,7 +534,7 @@ function navigation()
         % Others
         hold off;
 
-        title('Map (occupancy Matrix)');
+        title('Explored map');
         axis([xLimits(1) * mapPrec, xLimits(2) * mapPrec, yLimits(1) * mapPrec, yLimits(2) * mapPrec]);
 
         drawnow;

@@ -13,6 +13,13 @@ and uses the following resources to run :
 * [TRS](http://ulgrobotics.github.io/trs/) : an open-source recipe for teaching/learning robotics with a simulator
 * [VREP PRO EDU (version 3.6.2)](https://www.coppeliarobotics.com/previousVersions)
 
+## Compatibility
+
+MATLAB version R2020a was used. The code works with this version but also with version R2019b.
+
+For R2019a, the `occupancyMap` must be replaced by `robotics.OccupancyGrid`.
+For previous versions, the user must adapt the code to his version of MATLAB.
+
 ## Milestone Navigation
 
 In this milestone, we have programmed the robot to explore its environment and create an appropriate representation of it.
