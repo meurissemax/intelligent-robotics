@@ -1,10 +1,9 @@
 % INFO0948-2 - Introduction to intelligent robotics
 % University of Liege - Academic year 2019-2020
-% Authors : Maxime Meurisse & Valentin Vermeylen
 
-function OptimalPath = a_start(StartX, StartY, MAP, GoalRegister, Connecting_Distance)
-    % Taken from Matlab official website.
-    
+% Taken from Matlab official website.
+
+function OptimalPath = AStar(StartX, StartY, MAP, GoalRegister, Connecting_Distance)
     %%  Preallocation of Matrices
 
     [Height, Width] = size(MAP); % Height and width of matrix

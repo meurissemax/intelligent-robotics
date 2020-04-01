@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function optiPath = optimize_path(path)
+function optiPath = optimizePath(path)
     % Returns an optimization of the path 'path'.
     %
     % 'path' is a path

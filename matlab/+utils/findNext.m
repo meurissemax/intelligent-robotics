@@ -2,12 +2,14 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function next = find_next(pos, occMat, threshDist, metric)
+function next = findNext(pos, occMat, threshDist, metric)
     % Returns the next inexplored point in 'occMat'
     % from 'pos'.
     %
     % 'pos' is a position (i, j) in 'occMat'
     % 'occMat' is a ternary occupancy matrix
+    % 'threshDist' is a threshold on the distance
+    % 'metric' is a metric to find the point (longest or shortest)
 
     % We get the occupancy matrix size
     sizeX = size(occMat, 1);
@@ -56,5 +58,10 @@ function next = find_next(pos, occMat, threshDist, metric)
                 end
             end
         end
+    end
+
+    % If no point has been find
+    if mDist == Inf || mDist == -Inf
+        next = Inf;
     end
 end

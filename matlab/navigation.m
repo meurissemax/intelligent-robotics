@@ -2,147 +2,159 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
+%% Milestone Navigation - (a)
+
 function navigation()
+
+    %%%%%%%%%%%%%%%%%%%%%%%
+    %% General variables %%
+    %%%%%%%%%%%%%%%%%%%%%%%
+
+    % The time step the simulator is using (your code should run close to it)
+    timestep = 0.05;
+
+    % Parameters for the movements
+    movPrecision = 0.6;
+    rotPrecision = 0.005;
+
+    % Map
+    mapSize = [15, 15];
+    mapPrec = 5;
+
+    % Stuck threshold
+    stuckTresh = 0.4;
+    stuckDist = 1;
+
+    % Velocity factors
+    forwBackVelFact = 3;
+    rotVelFact = 1;
+
+    % Map inflation factor
+    mapInflatedFact = 0.6;
+
+    % Exploration threshold
+    explThresh = 0.98;
+
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Simulator initialisation %%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-    disp('Program started');
 
-    % Connection to the simulator.
+    fprintf('Program started\n');
+
+    % Connection to the simulator
     vrep = remApi('remoteApi');
     vrep.simxFinish(-1);
     id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
 
-    % If the connection has failed.
+    % If the connection has failed
     if id < 0
-        disp('Failed connecting to remote API server. Exiting.');
+        fprintf('Failed connecting to remote API server. Exiting.\n');
         
         vrep.delete();
         return;
     end
 
-    % If connection successed.
+    % If connection successed
     fprintf('Connection %d to remote API server open.\n', id);
-    
-    % Make sure we close the connection whenever the script is interrupted.
+
+    % Make sure we close the connection whenever the script is interrupted
     cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
 
-    % Start the simulation.
+    % Start the simulation
     vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
 
-    % Retrieve all handles, mostly the Hokuyo.
+    % Retrieve all handles, mostly the Hokuyo
     h = youbot_init(vrep, id);
     h = youbot_hokuyo_init(vrep, h);
 
-    % Make sure everything is settled before we start (wait for the simulation to start).
+    % Make sure everything is settled before we start (wait for the simulation to start)
     pause(0.2);
-
-    % The time step the simulator is using (your code should run close to it).
-    timestep = 0.05;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Values initialisation %%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    disp('Starting robot');
-    
-    %% Parameters for controlling the youBot's wheels
-    
-    % At each iteration, those values will be set for the wheels
+    fprintf('Starting robot\n');
+
+    % Parameters for controlling the youBot's wheels
     forwBackVel = 0;
     leftRightVel = 0;
     rotVel = 0;
 
-    %% Parameters for the movements
-
-    movPrecision = 0.6;
-    rotPrecision = 0.005;
-
-    %% Map and meshgrid
-
-    meshSize = 0.1;
+    % Meshgrid
+    meshSize = 1 / mapPrec;
 
     [X, Y] = meshgrid(-5:meshSize:5, -5:meshSize:5);
     X = reshape(X, 1, []);
     Y = reshape(Y, 1, []);
 
-    mapSize = [15, 15];
-    mapPrec = 5;
-
+    % Map
     map = occupancyMap(mapSize(1) * 2, mapSize(2) * 2, mapPrec);
 
-    %% Initial position and orientation
-    
     % Position
     [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
     vrchk(vrep, res, true);
-    
-    % Orientation
-    [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
-    vrchk(vrep, res, true);
 
-    % Initial values
     initPos = youbotPos - [mapSize(1), mapSize(2), 0];
-    initA1 = youbotEuler(1);
-    initA2 = youbotEuler(2);
-    initA3 = youbotEuler(3);
 
+    % Set the position of the robot and his neighboorhood to 0 (free position)
     pos = youbotPos - initPos;
     setOccupancy(map, [pos(1), pos(2)], 0);
 
-    %% Initialise the position of the robot in the occupancy map
-    for x = pos(1) - 2*(1/mapPrec):(1/mapPrec):pos(1) + 2*(1/mapPrec)
-        for y = pos(2) - 2*(1/mapPrec):(1/mapPrec):pos(2) + 2*(1/mapPrec)
-            if x >= (1/mapPrec) && y >= (1/mapPrec) && x <= mapSize(1) * 2 && y <= mapSize(2) * 2 && (x ~= pos(1) || y ~= pos(2))
-                setOccupancy(map, [x y], 0);
+    dx = 1 / mapPrec;
+    radius = 2;
+    xLimits = map.XWorldLimits;
+    yLimits = map.YWorldLimits;
+
+    for x = (pos(1) - radius * dx):dx:(pos(1) + radius * dx)
+        for y = (pos(2) - radius * dx):dx:(pos(2) + radius * dx)
+            if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= pos(1) || y ~= pos(2))
+                setOccupancy(map, [x, y], 0);
             end
         end
     end
 
-    %% Finite state machine
-
-    % Initial state of the FSM
+    % Initial state of the Finite State Machine (FSM)
     state = 'navigation';
 
     % List of actions classed by categories
-    displacementActions = {'forward', 'backward', 'left', 'right'};
+    displacementActions = {'forward', 'backward'};
     rotationActions = {'rotate'};
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Objective list and path %%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    % Define the objective list
-    objectiveList = {
-        {'rotate', pi}
-    };
     
-    action = objectiveList{1}{1};
-    objective = objectiveList{1}{2};
+    % Initialise the objective list
+    objectiveList = {};
     
-    objectiveList(1) = [];
+    % Initialise the first action
+    action = 'rotate';
+    objective = pi;
     
     % Initialise the flag for the current objective
     hasAccCurrentObj = false;
 
     % Define the path and its metric
-    path = [];
-    metric = 'shortest';
+    pathList = [];
+    pathMetric = 'shortest';
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
     %% Display information %%
     %%%%%%%%%%%%%%%%%%%%%%%%%
 
+    % Console debug
     fprintf('\n***************************************\n');
     fprintf('* The robot begins state "%s" *\n', state);
     fprintf('***************************************\n\n');
 
-    fprintf('In this state, he will discover the map and build an appropriate representation.\n\n');
+    if strcmp(state, 'navigation')
+        fprintf('In this state, he will discover the map and build an appropriate representation.\n\n');
+    end
 
     fprintf('List of actions\n');
     fprintf('---------------\n');
@@ -167,9 +179,9 @@ function navigation()
         end
 
 
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Position and orientation of the robot %%
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 1. Get position and orientation of the robot %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         % Position
         [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
@@ -181,16 +193,13 @@ function navigation()
 
         % Update values
         pos = youbotPos - initPos;
-        A1 = youbotEuler(1);
-        A2 = youbotEuler(2);
-        A3 = youbotEuler(3);
 
         % Transformation to robot absolute position
-        trf = transl(pos) * trotx(A1) * troty(A2) * trotz(A3);
+        trf = transl(pos) * trotx(youbotEuler(1)) * troty(youbotEuler(2)) * trotz(youbotEuler(3));
 
         % Point obtention (from Hokuyo)
         [pts, cts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-        simplifiedPoly = utils.simplify_polygon([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
+        simplifiedPoly = utils.simplifyPolygon([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
         in = inpolygon(X, Y, simplifiedPoly(1, :), simplifiedPoly(2, :));
 
         % Transforming inside points to absolute reference
@@ -208,75 +217,58 @@ function navigation()
         % Get the occupancy matrix
         occMat = occupancyMatrix(map, 'ternary');
 
-        % Show the map
-        subplot(2, 1, 1);
-        
-        [i_free, j_free] = find(occMat == 0);
-        [x_free, y_free] = utils.mat_to_cart(i_free, j_free, size(occMat, 1));
-        plot(x_free, y_free, '.g');
-        hold on;
 
-        [i_occ, j_occ] = find(occMat == 1);
-        [x_occ, y_occ] = utils.mat_to_cart(i_occ, j_occ, size(occMat, 1));
-        plot(x_occ, y_occ, '*r');
-        hold on;
-        
-        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
-        hold off;
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 2. Check if robot is stuck %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        %axis([0, mapSize(1) * mapPrec * 2, 0, mapSize(2) * mapPrec * 2]);
-        title('Explored map');
-
-        drawnow;
-
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Check if robot is stuck %%
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+        % Distance to the nearest element in front of the robot
         inFront = round(size(inPts, 1) / 2);
         distFront = pdist2([pos(1), pos(2)], [inPts(inFront, 1), inPts(inFront, 2)], 'euclidean');
 
-        if distFront < 0.4
-            fprintf('ROBOT IS STUCK, RESET\n');
-            hasAccCurrentObj = false;
+        % If robot is too close to something
+        if distFront < stuckTresh
 
-            d1 = abs(angdiff(youbotEuler(3), pi / 2));
-            d2 = abs(angdiff(youbotEuler(3), - pi / 2));
-            d3 = abs(angdiff(youbotEuler(3), 0));
-            d4 = abs(angdiff(youbotEuler(3), pi));
+            % Get the orientation
+            distAngl = [
+                abs(angdiff(youbotEuler(3), pi / 2)),
+                abs(angdiff(youbotEuler(3), - pi / 2)),
+                abs(angdiff(youbotEuler(3), 0)),
+                abs(angdiff(youbotEuler(3), pi))
+            ];
+            
+            minDistAngl = min(distAngl);
 
-            hori = 0;
-            vert = 0;
+            % Get the direction where the robot should backward
+            dx = 0;
+            dy = 0;
 
-            mind = min([d1, d2, d3, d4]);
-
-            if mind == d1
-                hori = -1;
-                fprintf('D1\n');
-            elseif mind == d2
-                hori = 1;
-                fprintf('D2\n');
-            elseif mind == d3
-                vert = 1;
-                fprintf('D3\n');
+            if minDistAngl == distAngl(1)
+                dx = -stuckDist;
+            elseif minDistAngl == distAngl(2)
+                dx = stuckDist;
+            elseif minDistAngl == distAngl(3)
+                dy = stuckDist;
             else
-                vert = -1;
-                fprintf('D4\n');
+                dy = -stuckDist;
             end
 
+            % Define new action, new objective and reset the path
             action = 'backward';
-            objective = [pos(1) + hori, pos(2) + vert];
-            fprintf('Stuck in : (%f, %f). Backward in (%f, %f).\n', youbotPos(1), youbotPos(2), objective(1), objective(2));
-
-            metric = 'shortest';
+            objective = [pos(1) + dx, pos(2) + dy];
+            
+            hasAccCurrentObj = false;
+            
             objectiveList = {};
-            path = [];
+
+            pathList = [];
+            pathMetric = 'shortest';
         end
 
 
-        %%%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Finite state machine %%
-        %%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 3. Finite state machine %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         %% State 'navigation'
 
@@ -284,26 +276,24 @@ function navigation()
         % construct an appropriate representation.
         if strcmp(state, 'navigation')
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %% Define new objective(s) %%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% 3.1 Define new objective(s) %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-            % If the robot has accomplished his objective.
+            % If the robot has accomplished his objective
             if hasAccCurrentObj
 
-                % If there remains no objective in the list.
+                % If there remains no objective in the list
                 if length(objectiveList) == 0
 
-                    % If there remains no points in the path.
-                    if length(path) == 0
+                    % If there remains no points in the path
+                    if length(pathList) == 0
 
-                        % If the whole map is explored, we can stop the robot.
-                        if utils.is_map_explored(occMat, mapSize, mapPrec)
-                            action = 'finished';
-                            objective = [0, 0];
-
-                            fprintf('MAP EXPLORED !!\n');
-
+                        % If the whole map is explored, we can stop the robot
+                        if utils.isExplored(occMat, mapSize, mapPrec, explThresh)
+                            fprintf('The map has been fully explored !\n');
+                            
+                            pause(3);
                             break;
 
                         % If the whole map is not yet fully explored,
@@ -311,14 +301,20 @@ function navigation()
                         else
                             % Determine next nearest inexplorated point
                             mapInflated = copy(map);
-                            inflate(mapInflated, 0.6);
+                            inflate(mapInflated, mapInflatedFact);
                             occMatInf = occupancyMatrix(mapInflated, 'ternary');
                             
-                            nextPoint = utils.find_next([size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)], occMatInf, 15, metric);
-                            [xNext, yNext] = utils.mat_to_cart(nextPoint(1), nextPoint(2), size(occMat, 1));
-                            fprintf('next point is : %f %f\n', xNext, yNext);
+                            nextPoint = utils.findNext([size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)], occMatInf, 15, pathMetric);
 
-                            metric = 'shortest';
+                            if nextPoint == Inf
+                                fprintf('No possible next point to explore. The map has been probably fully explored.\n');
+                                
+                                pause(3);
+                                break;
+                            end
+
+                            % Set the next metric
+                            pathMetric = 'shortest';
                             
                             % Get the path to this point
                             startPoint = [size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)];
@@ -339,124 +335,55 @@ function navigation()
                                 end
                             end
 
-                            subplot(2, 1, 2);
-
-                            [i_free, j_free] = find(occMatInf == 0);
-                            [x_free, y_free] = utils.mat_to_cart(i_free, j_free, size(occMat, 1));
-                            plot(x_free, y_free, '.g');
-                            hold on;
-
-                            [i_occ, j_occ] = find(occMatInf == 1);
-                            [x_occ, y_occ] = utils.mat_to_cart(i_occ, j_occ, size(occMat, 1));
-                            plot(x_occ, y_occ, '*r');
-                            hold on;
-
-                            plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
-                            hold on;
-
-                            plot(xNext, yNext, '*b', 'markersize', 10);
-                            hold off;
-
-                            drawnow;
-
-                            path = utils.a_star(startPoint(2), startPoint(1), occMatInf, goalPoint, 5);
-
-                            if path(1) == Inf
-                                fprintf('PATH = INF');
-                                metric = 'shortest';
-                                path(1, :) = [];
-
-                                continue;
-                            end
-
-                            path = utils.optimize_path(path);
-                            path(end, :) = [];
-                            
-                            % Plot the path
-                            subplot(2, 1, 2);
-
-                            [i_free, j_free] = find(occMatInf == 0);
-                            [x_free, y_free] = utils.mat_to_cart(i_free, j_free, size(occMat, 1));
-                            plot(x_free, y_free, '.g');
-                            hold on;
-
-                            [i_occ, j_occ] = find(occMatInf == 1);
-                            [x_occ, y_occ] = utils.mat_to_cart(i_occ, j_occ, size(occMat, 1));
-                            plot(x_occ, y_occ, '*r');
-                            hold on;
-                            
-                            plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), 'or', 'markersize', 10);
-                            hold on;
-
-                            plot(xNext, yNext, '*b', 'markersize', 10);
-                            hold on;
-
-                            for i = 1:size(path, 1)
-                                [xObj, yObj] = utils.mat_to_cart(path(i, 1), path(i, 2), size(occMat, 1));
-
-                                plot(xObj, yObj, '+m', 'markersize', 5);
-                                hold on;
-                            end
-
-                            hold off;
-
-                            %axis([0, mapSize(1) * mapPrec * 2, 0, mapSize(2) * mapPrec * 2]);
-                            title('Next objective');
-                            
-                            drawnow;
+                            pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, 5);
+                            pathList = utils.optimizePath(pathList);
+                            pathList(end, :) = [];
                         end
                     end
                     
-                    % Determine next objective to follow the path
-                    if length(path) == 0
-                        fprintf('PATH EMPTY\n');
-                    end
+                    %% Determine next action and objective to follow the path
 
-                    [xObj, yObj] = utils.mat_to_cart(path(end, 1), path(end, 2), size(occMat, 1));
+                    % Get next objective
+                    [xObj, yObj] = utils.matToCart(pathList(end, 1), pathList(end, 2), size(occMat, 1));
 
+                    % Get rotation angle to align the robot
                     a = [0 -1];
                     b = [(xObj / mapPrec) - pos(1), (yObj / mapPrec) - pos(2)];
 
                     rotAngl = sign((xObj / mapPrec) - pos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 
+                    % Set the objectives
                     objective = {'rotate', rotAngl};
                     objectiveList{end + 1} = objective;
-
+                    
                     objective = {'forward', [(xObj / mapPrec), (yObj / mapPrec)]};
                     objectiveList{end + 1} = objective;
 
-                    path(end, :) = [];
-
-                    % Get the following objective
-                    action = objectiveList{1}{1};
-                    objective = objectiveList{1}{2};
-                
-                    objectiveList(1) = [];
-
-                % If there is still objective(s) in the list
-                else
-                    action = objectiveList{1}{1};
-                    objective = objectiveList{1}{2};
-                    
-                    objectiveList(1) = [];
+                    % Remove this point from the path
+                    pathList(end, :) = [];
                 end
+
+                % Get the next objective
+                action = objectiveList{1}{1};
+                objective = objectiveList{1}{2};
+                
+                objectiveList(1) = [];
 
                 % Reset the flag
                 hasAccCurrentObj = false;
 
                 % Print action and objective information
-                if strcmp(action, 'finished')
-                    fprintf('[position : (%f, %f)] - Next action is "%s"\n', pos(1), pos(2), action);
-                elseif any(strcmp(action, displacementActions))
-                    fprintf('[position : (%f, %f)] - Next action is "%s" with objective (%f, %f)\n', pos(1), pos(2), action, objective(1), objective(2));
+                if any(strcmp(action, displacementActions))
+                    fprintf('[%s] [position : (%f, %f)] -> [objective : (%f, %f)]\n', upper(action), pos(1) * mapPrec, pos(2) * mapPrec, objective(1) * mapPrec, objective(2) * mapPrec);
                 elseif any(strcmp(action, rotationActions))
-                    fprintf('[orientation : %f] - Next action is "%s" with objective %f\n', rad2deg(youbotEuler(3)), action, rad2deg(objective));
+                    fprintf('[%s] [orientation : %f] -> [objective : %f]\n', upper(action), rad2deg(youbotEuler(3)), rad2deg(objective));
                 end
             end
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %% Distance to objective %%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% 3.2 Calculate distance to objective %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
             % If we are in a displacement action
             if any(strcmp(action, displacementActions))
@@ -465,106 +392,54 @@ function navigation()
             % If we are in a rotation action
             elseif any(strcmp(action, rotationActions))
                 distObj = abs(angdiff(objective, youbotEuler(3)));
-
-            % If we are in an unknown action
-            else
-                distObj = 0;
             end
 
 
-            %%%%%%%%%%%%%%%%%%%%%%
-            %% Action 'forward' %%
-            %%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%
+            %% 3.3 Set actions %%
+            %%%%%%%%%%%%%%%%%%%%%
+
+            %% Action 'forward'
 
             if strcmp(action, 'forward')
-                
-                % Set the forward/backward velocity of the robot.
-                forwBackVel = -3 * sum(distObj);
-
+                forwBackVel = -forwBackVelFact * sum(distObj);
             
-            %%%%%%%%%%%%%%%%%%%%%%%
-            %% Action 'backward' %%
-            %%%%%%%%%%%%%%%%%%%%%%%
+            %% Action 'backward'
 
             elseif strcmp(action, 'backward')
+                forwBackVel = forwBackVelFact * sum(distObj);
 
-                % Set the forward/backward velocity of the robot.
-                forwBackVel = 3 * sum(distObj);
-
-            
-            %%%%%%%%%%%%%%%%%%%
-            %% Action 'left' %%
-            %%%%%%%%%%%%%%%%%%%
-
-            elseif strcmp(action, 'left')
-                
-                % Set the left/right velocity of the robot.
-                leftRightVel = 3 * sum(distObj);
-
-
-            %%%%%%%%%%%%%%%%%%%%
-            %% Action 'right' %%
-            %%%%%%%%%%%%%%%%%%%%
-
-            elseif strcmp(action, 'right')
-                
-                % Set the left/right velocity of the robot.
-                leftRightVel = -3 * sum(distObj);
-
-
-            %%%%%%%%%%%%%%%%%%%%%
-            %% Action 'rotate' %%
-            %%%%%%%%%%%%%%%%%%%%%
+            %% Action 'rotate'
 
             elseif strcmp(action, 'rotate')
+                rotVel = rotVelFact * angdiff(objective, youbotEuler(3));
 
-                % Set the rotation velocity of the robot.
-                rotVel = angdiff(objective, youbotEuler(3));
-
-
-            %%%%%%%%%%%%%%%%%%%%%%%
-            %% Action 'finished' %%
-            %%%%%%%%%%%%%%%%%%%%%%%
-
-            elseif strcmp(action, 'finished')
-                pause(3);
-
-                break
-
-
-            %%%%%%%%%%%%%%%%%%%%
-            %% Unknown action %%
-            %%%%%%%%%%%%%%%%%%%%
+            %% Unknown action
 
             else
                 error('Unknown action %s.', action);
             end
 
 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %% Verification of the objective %%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %% 3.4 Verification of the objective %%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-            % If we are in a displacement action.
+            % If we are in a displacement action
             if any(strcmp(action, displacementActions))
                 if distObj(1) < movPrecision && distObj(2) < movPrecision
                     forwBackVel = 0;
-                    leftRightVel = 0;
 
                     hasAccCurrentObj = true;
                 end
 
-            % If we are in a rotation action.
+            % If we are in a rotation action
             elseif any(strcmp(action, rotationActions))
                 if distObj < rotPrecision
                     rotVel = 0;
                     
                     hasAccCurrentObj = true;
                 end
-
-            % If we are in an unknown action.
-            else
-                action = 'finished';
             end
 
         %% Unknown state
@@ -574,19 +449,64 @@ function navigation()
         end
 
 
-        %%%%%%%%%%%%%%%%%%%%%%%%
-        %% Update information %%
-        %%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 4. Update information %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        % Wheel velocities.
+        % Wheel velocities
         h = youbot_drive(vrep, h, forwBackVel, leftRightVel, rotVel);
 
 
-        %%%%%%%%%%%%%%%%%%%%%%%%%
-        %% Physic verification %%
-        %%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 5. Show the map and its components %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        % Visited free points
+        [i_free, j_free] = find(occMat == 0);
+        [x_free, y_free] = utils.matToCart(i_free, j_free, size(occMat, 1));
+        plot(x_free, y_free, '.g');
+        hold on;
+
+        % Visited occupied points
+        [i_occ, j_occ] = find(occMat == 1);
+        [x_occ, y_occ] = utils.matToCart(i_occ, j_occ, size(occMat, 1));
+        plot(x_occ, y_occ, '*r');
+        hold on;
+
+        % Position of the robot
+        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), '.k', 'MarkerSize', 20);
+        hold on;
+
+        % Path and objective
+        if length(pathList) > 1
+            pathConverted = [];
+
+            for i = 1:size(pathList, 1)
+                [x, y] = utils.matToCart(pathList(i, 1), pathList(i, 2), size(occMat, 1));
+                pathConverted(i, :) = [x, y];
+            end
+
+            plot(pathConverted(:, 1), pathConverted(:, 2), '.m', 'MarkerSize', 20);
+            hold on;
+
+            line(pathConverted(:, 1), pathConverted(:, 2), 'Color', 'm', 'LineWidth', 2);
+            hold on;
+        end
+
+        % Others
+        hold off;
+
+        title('Map (occupancy Matrix)');
+        axis([xLimits(1) * mapPrec, xLimits(2) * mapPrec, yLimits(1) * mapPrec, yLimits(2) * mapPrec]);
+
+        drawnow;
+
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% 6. Physic verifications %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        % Make sure that we do not go faster than the physics simulation (it is useless to go faster). 
+        % Make sure that we do not go faster than the physics simulation (it is useless to go faster)
         elapsed = toc;
         timeleft = timestep - elapsed;
 

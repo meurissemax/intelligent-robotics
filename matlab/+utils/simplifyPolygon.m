@@ -1,9 +1,9 @@
 % INFO0948-2 - Introduction to intelligent robotics
 % University of Liege - Academic year 2019-2020
-% Authors : Maxime Meurisse & Valentin Vermeylen
 
-function new_mesh = simplify_polygon(polygon)
-    % Taken from https://www.youtube.com/watch?v=b7t6qkfPKuI
+% Taken from https://www.youtube.com/watch?v=b7t6qkfPKuI
+
+function new_mesh = simplifyPolygon(polygon)
     % Returns a simplified polygon from 'polygon'
     %
     % 'polygon' is a list of coordinates

@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function [x, y] = mat_to_cart(i, j, height)
+function [x, y] = matToCart(i, j, height)
     % Returns the coordinates in a cartesian convention.
     %
     % 'i' the first coordinate in matrix convention
