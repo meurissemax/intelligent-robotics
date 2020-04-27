@@ -14,7 +14,7 @@ function navigation()
     timestep = 0.05;
 
     % Movements tolerances
-    movPrecision = 0.5;
+    movPrecision = 0.3;
     rotPrecision = 0.005;
 
     % Map parameters
@@ -22,7 +22,7 @@ function navigation()
     mapPrec = 5;
 
     % Parameters when the robot is stuck
-    stuckTresh = 0.4;
+    stuckTresh = 0.8;
     stuckDist = 0.5;
 
     % Velocity multipliers
@@ -33,7 +33,7 @@ function navigation()
     mapInflatedFact = 0.6;
 
     % Exploration threshold (percentage of points to visit)
-    explThresh = 0.98;
+    explThresh = 0.99;
 
     % Possible connection distance between points for A*
     pathDist = 10;
@@ -102,6 +102,10 @@ function navigation()
     % Position
     [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
     vrchk(vrep, res, true);
+    
+    % Orientation
+    [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
 
     initPos = youbotPos - [mapSize(1), mapSize(2), 0];
 
@@ -136,13 +140,12 @@ function navigation()
     
     % Initialise the objective list
     objectiveList = {};
-    
+
     % Initialise the first action
-    action = 'rotate';
-    objective = pi;
-    
+    objectiveList{1} = {'rotate', youbotEuler(3) + pi};
+
     % Initialise the flag for the current objective
-    hasAccCurrentObj = false;
+    hasAccCurrentObj = true;
 
     % Define the path and its metric
     pathList = [];
@@ -199,6 +202,9 @@ function navigation()
 
         % Update values
         pos = youbotPos - initPos;
+
+        pos_x = round(pos(1) * mapPrec);
+        pos_y = round(pos(2) * mapPrec);
 
         % Transformation to robot absolute position
         trf = transl(pos) * trotx(youbotEuler(1)) * troty(youbotEuler(2)) * trotz(youbotEuler(3));
@@ -309,8 +315,11 @@ function navigation()
                             mapInflated = copy(map);
                             inflate(mapInflated, mapInflatedFact);
                             occMatInf = occupancyMatrix(mapInflated, 'ternary');
-                            
-                            nextPoint = utils.findNext([size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)], occMatInf, 15, pathMetric);
+
+                            from_x = round(inPts(inFront, 1) * mapPrec);
+                            from_y = round(inPts(inFront, 2) * mapPrec);
+
+                            nextPoint = utils.findNext([size(occMat, 1) - from_y + 1, from_x], occMatInf, 15, pathMetric);
 
                             % If we can not find new point, the map is probably explored
                             if nextPoint == Inf
@@ -324,7 +333,7 @@ function navigation()
                             pathMetric = 'shortest';
                             
                             % Get the path to this point
-                            startPoint = [size(occMat, 1) - round(pos(2) * mapPrec) + 1, round(pos(1) * mapPrec)];
+                            startPoint = [size(occMat, 1) - pos_y + 1, pos_x];
                             stopPoint = [nextPoint(1), nextPoint(2)];
                             
                             goalPoint = zeros(size(occMat));
@@ -333,7 +342,7 @@ function navigation()
                             % Set stop point to 0 (to be sure that A* can reach it)
                             occMatInf(stopPoint(1), stopPoint(2)) = 0;
                             
-                            % Set neighborhodd of start point to 0 (to be sure that A* can begin)
+                            % Set neighborhood of start point to 0 (to be sure that A* can begin)
                             for x = startPoint(1) - 1:1:startPoint(1) + 1
                                 for y = startPoint(2) - 1:1:startPoint(2) + 1
                                     if x >= 1 && y >= 1 && x <= size(occMatInf, 1) && y <= size(occMatInf, 2) && (x ~= startPoint(1) || y ~= startPoint(2))
@@ -391,8 +400,10 @@ function navigation()
                     rotAngl = sign((xObj / mapPrec) - pos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 
                     % Set the objectives
-                    objective = {'rotate', rotAngl};
-                    objectiveList{end + 1} = objective;
+                    if abs(youbotEuler(3) - rotAngl) > 0.2
+                        objective = {'rotate', rotAngl};
+                        objectiveList{end + 1} = objective;
+                    end
                     
                     objective = {'forward', [(xObj / mapPrec), (yObj / mapPrec)]};
                     objectiveList{end + 1} = objective;
@@ -502,17 +513,17 @@ function navigation()
         % Visited free points
         [i_free, j_free] = find(occMat == 0);
         [x_free, y_free] = utils.matToCart(i_free, j_free, size(occMat, 1));
-        plot(x_free, y_free, '.g');
+        plot(x_free, y_free, '.g', 'MarkerSize', 10);
         hold on;
 
         % Visited occupied points
         [i_occ, j_occ] = find(occMat == 1);
         [x_occ, y_occ] = utils.matToCart(i_occ, j_occ, size(occMat, 1));
-        plot(x_occ, y_occ, '*r');
+        plot(x_occ, y_occ, '.r', 'MarkerSize', 10);
         hold on;
 
         % Position of the robot
-        plot(round(pos(1) * mapPrec), round(pos(2) * mapPrec), '.k', 'MarkerSize', 20);
+        plot(pos_x, pos_y, '.k', 'MarkerSize', 20);
         hold on;
 
         % Path and objective
@@ -529,13 +540,15 @@ function navigation()
 
             line(pathConverted(:, 1), pathConverted(:, 2), 'Color', 'm', 'LineWidth', 2);
             hold on;
+
+            line([pos_x, pathConverted(end, 1)], [pos_y, pathConverted(end, 2)], 'Color', 'black', 'LineWidth', 2);
+            hold on;
         end
 
         % Others
         hold off;
 
         title('Explored map');
-        axis([xLimits(1) * mapPrec, xLimits(2) * mapPrec, yLimits(1) * mapPrec, yLimits(2) * mapPrec]);
 
         drawnow;
 
