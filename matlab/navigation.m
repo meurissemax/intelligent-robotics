@@ -2,9 +2,9 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-%% Milestone Navigation - (a)
+%% Milestone Navigation
 
-function navigation()
+function navigation(vrep, id, h)
 
     %%%%%%%%%%%%%%%%%%%%%%%
     %% General variables %%
@@ -39,43 +39,6 @@ function navigation()
     pathDist = 10;
 
 
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Simulator initialisation %%
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    fprintf('Program started\n');
-
-    % Connection to the simulator
-    vrep = remApi('remoteApi');
-    vrep.simxFinish(-1);
-    id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
-
-    % If the connection has failed
-    if id < 0
-        fprintf('Failed connecting to remote API server. Exiting.\n');
-        
-        vrep.delete();
-
-        return;
-    end
-
-    % If connection successed
-    fprintf('Connection %d to remote API server open.\n', id);
-
-    % Make sure we close the connection whenever the script is interrupted
-    cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
-
-    % Start the simulation
-    vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
-
-    % Retrieve all handles, mostly the Hokuyo
-    h = youbot_init(vrep, id);
-    h = youbot_hokuyo_init(vrep, h);
-
-    % Make sure everything is settled before we start (wait for the simulation to start)
-    pause(0.2);
-
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Values initialisation %%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -99,10 +62,6 @@ function navigation()
 
     % Position
     [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
-    vrchk(vrep, res, true);
-    
-    % Orientation
-    [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
     vrchk(vrep, res, true);
 
     initPos = youbotPos - [mapSize(1), mapSize(2), 0];
@@ -161,10 +120,8 @@ function navigation()
 
     if strcmp(state, 'navigation')
         fprintf('In this state, he will discover the map and build an appropriate representation.\n\n');
+        fprintf('Robot is exploring the map...\n');
     end
-
-    fprintf('List of actions\n');
-    fprintf('---------------\n');
     
     % We reset possible previous figure(s)
     clf;
@@ -298,12 +255,15 @@ function navigation()
                     % If there remains no points in the path
                     if length(pathList) == 0
 
-                        % If the whole map is explored, we can stop the robot
+                        % If the whole map is explored, we can stop the robot and
+                        % export the map representation
                         if utils.explored(occMat, mapSize, mapPrec, explThresh)
                             fprintf('The map has been fully explored !\n');
-                            
+
+                            state = 'exportation';
+
                             pause(3);
-                            break;
+                            continue;
 
                         % If the whole map is not yet fully explored,
                         % we define a new path.
@@ -321,9 +281,11 @@ function navigation()
                             % If we can not find new point, the map is probably explored
                             if nextPoint == Inf
                                 fprintf('No possible next point to explore. The map has been probably fully explored.\n');
+
+                                state = 'exportation';
                                 
                                 pause(3);
-                                break;
+                                continue;
                             end
                             
                             % Get the path to this point
@@ -370,9 +332,10 @@ function navigation()
                             end
 
                             if hasFinished
-                                pause(3);
+                                state = 'exportation';
 
-                                break
+                                pause(3);
+                                continue;
                             end
 
                             % Optimize the path
@@ -413,13 +376,6 @@ function navigation()
 
                 % Reset the flag
                 hasAccCurrentObj = false;
-
-                % Print action and objective information (console debug)
-                if any(strcmp(action, displacementActions))
-                    fprintf('[%s] [position : (%f, %f)] -> [objective : (%f, %f)]\n', upper(action), pos(1) * mapPrec, pos(2) * mapPrec, objective(1) * mapPrec, objective(2) * mapPrec);
-                elseif any(strcmp(action, rotationActions))
-                    fprintf('[%s] [orientation : %f] -> [objective : %f]\n', upper(action), rad2deg(youbotEuler(3)), rad2deg(objective));
-                end
             end
 
 
@@ -487,6 +443,20 @@ function navigation()
                 end
             end
 
+        %% State 'exportation'
+
+        % In this state, the robot will export his
+        % representation of the map.
+        elseif strcmp(state, 'exportation')
+
+            % Export the map
+            save('mat/map', 'map');
+            
+            fprintf('Map representation has been exported.\n');
+
+            % Stop the simulation
+            break;
+
         %% Unknown state
 
         else
@@ -506,40 +476,8 @@ function navigation()
         %% 5. Show the map and its components %%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-        % Visited free points
-        [i_free, j_free] = find(occMat == 0);
-        [x_free, y_free] = utils.tocart(i_free, j_free, size(occMat, 1));
-        plot(x_free, y_free, '.g', 'MarkerSize', 10);
-        hold on;
-
-        % Visited occupied points
-        [i_occ, j_occ] = find(occMat == 1);
-        [x_occ, y_occ] = utils.tocart(i_occ, j_occ, size(occMat, 1));
-        plot(x_occ, y_occ, '.r', 'MarkerSize', 10);
-        hold on;
-
-        % Position of the robot
-        plot(pos_x, pos_y, '.k', 'MarkerSize', 20);
-        hold on;
-
-        % Path and objective
-        if length(pathDisp) > 1
-            pathConverted = [];
-
-            for i = 1:size(pathDisp, 1)
-                [x, y] = utils.tocart(pathDisp(i, 1), pathDisp(i, 2), size(occMat, 1));
-                pathConverted(i, :) = [x, y];
-            end
-
-            plot(pathConverted(:, 1), pathConverted(:, 2), '.m', 'MarkerSize', 20);
-            hold on;
-
-            line(pathConverted(:, 1), pathConverted(:, 2), 'Color', 'm', 'LineWidth', 2);
-            hold on;
-
-            line([pos_x, pathConverted(end, 1)], [pos_y, pathConverted(end, 2)], 'Color', 'black', 'LineWidth', 2);
-            hold on;
-        end
+        % Show the map
+        utils.map(occMat, [pos_x, pos_y], pathDisp);
 
         % We check if we have to remove the last point
         if removePath
@@ -547,13 +485,6 @@ function navigation()
 
             removePath = false;
         end
-
-        % Others
-        hold off;
-
-        title('Explored map');
-
-        drawnow;
 
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
