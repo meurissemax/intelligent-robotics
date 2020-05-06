@@ -3,7 +3,7 @@
 
 % Taken from Matlab official website.
 
-function OptimalPath = AStar(StartX, StartY, MAP, GoalRegister, Connecting_Distance)
+function OptimalPath = astar(StartX, StartY, MAP, GoalRegister, Connecting_Distance)
     %%  Preallocation of Matrices
 
     [Height, Width] = size(MAP); % Height and width of matrix

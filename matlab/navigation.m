@@ -15,7 +15,7 @@ function navigation()
 
     % Movements tolerances
     movPrecision = 0.3;
-    rotPrecision = 0.005;
+    rotPrecision = 0.002;
 
     % Map parameters
     mapSize = [15, 15];
@@ -26,20 +26,17 @@ function navigation()
     stuckDist = 0.5;
 
     % Velocity multipliers
-    forwBackVelFact = 3;
-    rotVelFact = 1;
+    forwBackVelFact = 4;
+    rotVelFact = 1.5;
 
     % Map inflation factor
     mapInflatedFact = 0.6;
 
     % Exploration threshold (percentage of points to visit)
-    explThresh = 0.99;
+    explThresh = 0.999;
 
     % Possible connection distance between points for A*
     pathDist = 10;
-
-    % Minimal distance to keep between points in path
-    optiDist = 15;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,6 +55,7 @@ function navigation()
         fprintf('Failed connecting to remote API server. Exiting.\n');
         
         vrep.delete();
+
         return;
     end
 
@@ -109,7 +107,7 @@ function navigation()
 
     initPos = youbotPos - [mapSize(1), mapSize(2), 0];
 
-    % Set the position of the robot and his neighboorhood to 0 (free position)
+    % Set the position of the robot and his neighborhood to 0 (free position)
     pos = youbotPos - initPos;
     setOccupancy(map, [pos(1), pos(2)], 0);
 
@@ -141,15 +139,15 @@ function navigation()
     % Initialise the objective list
     objectiveList = {};
 
-    % Initialise the first action
-    objectiveList{1} = {'rotate', youbotEuler(3) + pi};
-
     % Initialise the flag for the current objective
     hasAccCurrentObj = true;
 
-    % Define the path and its metric
+    % Define the path
     pathList = [];
-    pathMetric = 'longest';
+    pathDisp = pathList;
+
+    % Initialize the flag
+    removePath = false;
 
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -211,7 +209,7 @@ function navigation()
 
         % Point obtention (from Hokuyo)
         [pts, cts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-        simplifiedPoly = utils.simplifyPolygon([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
+        simplifiedPoly = utils.simplify([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
         in = inpolygon(X, Y, simplifiedPoly(1, :), simplifiedPoly(2, :));
 
         % Transforming inside points to absolute reference
@@ -244,7 +242,7 @@ function navigation()
             % Get the orientation
             distAngl = [
                 abs(angdiff(youbotEuler(3), pi / 2)),
-                abs(angdiff(youbotEuler(3), - pi / 2)),
+                abs(angdiff(youbotEuler(3), -pi / 2)),
                 abs(angdiff(youbotEuler(3), 0)),
                 abs(angdiff(youbotEuler(3), pi))
             ];
@@ -274,7 +272,6 @@ function navigation()
             objectiveList = {};
 
             pathList = [];
-            pathMetric = 'shortest';
         end
 
 
@@ -302,7 +299,7 @@ function navigation()
                     if length(pathList) == 0
 
                         % If the whole map is explored, we can stop the robot
-                        if utils.isExplored(occMat, mapSize, mapPrec, explThresh)
+                        if utils.explored(occMat, mapSize, mapPrec, explThresh)
                             fprintf('The map has been fully explored !\n');
                             
                             pause(3);
@@ -319,7 +316,7 @@ function navigation()
                             from_x = round(inPts(inFront, 1) * mapPrec);
                             from_y = round(inPts(inFront, 2) * mapPrec);
 
-                            nextPoint = utils.findNext([size(occMat, 1) - from_y + 1, from_x], occMatInf, 15, pathMetric);
+                            nextPoint = utils.next([size(occMat, 1) - from_y + 1, from_x], occMatInf);
 
                             % If we can not find new point, the map is probably explored
                             if nextPoint == Inf
@@ -328,9 +325,6 @@ function navigation()
                                 pause(3);
                                 break;
                             end
-
-                            % Set the next metric
-                            pathMetric = 'shortest';
                             
                             % Get the path to this point
                             startPoint = [size(occMat, 1) - pos_y + 1, pos_x];
@@ -352,7 +346,7 @@ function navigation()
                             end
 
                             % Calculate the path with A*
-                            pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
+                            pathList = utils.astar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
 
                             hasFinished = false;
                             reduceInflate = mapInflatedFact - 0.1;
@@ -363,7 +357,7 @@ function navigation()
                                 inflate(mapInflated, reduceInflate);
                                 occMatInf = occupancyMatrix(mapInflated, 'ternary');
 
-                                pathList = utils.AStar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
+                                pathList = utils.astar(startPoint(2), startPoint(1), occMatInf, goalPoint, pathDist);
 
                                 reduceInflate = reduceInflate - 0.1;
 
@@ -381,17 +375,18 @@ function navigation()
                                 break
                             end
 
-                            % Optimize the path and remove the first point because it is the
-                            % position of the robot itself
-                            pathList = utils.optimizePath(pathList, optiDist);
-                            pathList(end, :) = [];
+                            % Optimize the path
+                            pathList = utils.optimize(pathList);
+
+                            % Get the path to display
+                            pathDisp = pathList;
                         end
                     end
                     
                     %% Determine next action and objective to follow the path
 
                     % Get next objective
-                    [xObj, yObj] = utils.matToCart(pathList(end, 1), pathList(end, 2), size(occMat, 1));
+                    [xObj, yObj] = utils.tocart(pathList(end, 1), pathList(end, 2), size(occMat, 1));
 
                     % Get rotation angle to align the robot with the objective
                     a = [0 -1];
@@ -400,10 +395,8 @@ function navigation()
                     rotAngl = sign((xObj / mapPrec) - pos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 
                     % Set the objectives
-                    if abs(youbotEuler(3) - rotAngl) > 0.2
-                        objective = {'rotate', rotAngl};
-                        objectiveList{end + 1} = objective;
-                    end
+                    objective = {'rotate', rotAngl};
+                    objectiveList{end + 1} = objective;
                     
                     objective = {'forward', [(xObj / mapPrec), (yObj / mapPrec)]};
                     objectiveList{end + 1} = objective;
@@ -480,6 +473,9 @@ function navigation()
                     forwBackVel = 0;
 
                     hasAccCurrentObj = true;
+
+                    % Set the flag
+                    removePath = true;
                 end
 
             % If we are in a rotation action
@@ -512,13 +508,13 @@ function navigation()
 
         % Visited free points
         [i_free, j_free] = find(occMat == 0);
-        [x_free, y_free] = utils.matToCart(i_free, j_free, size(occMat, 1));
+        [x_free, y_free] = utils.tocart(i_free, j_free, size(occMat, 1));
         plot(x_free, y_free, '.g', 'MarkerSize', 10);
         hold on;
 
         % Visited occupied points
         [i_occ, j_occ] = find(occMat == 1);
-        [x_occ, y_occ] = utils.matToCart(i_occ, j_occ, size(occMat, 1));
+        [x_occ, y_occ] = utils.tocart(i_occ, j_occ, size(occMat, 1));
         plot(x_occ, y_occ, '.r', 'MarkerSize', 10);
         hold on;
 
@@ -527,11 +523,11 @@ function navigation()
         hold on;
 
         % Path and objective
-        if length(pathList) > 1
+        if length(pathDisp) > 1
             pathConverted = [];
 
-            for i = 1:size(pathList, 1)
-                [x, y] = utils.matToCart(pathList(i, 1), pathList(i, 2), size(occMat, 1));
+            for i = 1:size(pathDisp, 1)
+                [x, y] = utils.tocart(pathDisp(i, 1), pathDisp(i, 2), size(occMat, 1));
                 pathConverted(i, :) = [x, y];
             end
 
@@ -543,6 +539,13 @@ function navigation()
 
             line([pos_x, pathConverted(end, 1)], [pos_y, pathConverted(end, 2)], 'Color', 'black', 'LineWidth', 2);
             hold on;
+        end
+
+        % We check if we have to remove the last point
+        if removePath
+            pathDisp(end, :) = [];
+
+            removePath = false;
         end
 
         % Others
