@@ -3,7 +3,7 @@
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
 function map(occMat, varargin)
-    % Returns a boolean indicating if the map is explored.
+    % Plot the representation of the map.
     %
     % 'occMat' is a ternary occupancy matrix
     % 'varargin' can contains :
