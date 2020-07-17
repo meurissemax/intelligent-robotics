@@ -4,59 +4,65 @@
 
 function main()
 
-    %%%%%%%%%%%%%%%%%%%%%%%
-    %% General variables %%
-    %%%%%%%%%%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Simulator initialisation %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    % Choose whether to navigate and manipulate or
-    % only navigate
-    onlyNav = true;
+	fprintf('Program started\n');
 
+	% Connection to the simulator
+	vrep = remApi('remoteApi');
+	vrep.simxFinish(-1);
+	id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
 
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% Simulator initialisation %%
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	% If the connection has failed
+	if id < 0
+		fprintf('Failed connecting to remote API server. Exiting.\n');
+		
+		vrep.delete();
 
-    fprintf('Program started\n');
+		return;
+	end
 
-    % Connection to the simulator
-    vrep = remApi('remoteApi');
-    vrep.simxFinish(-1);
-    id = vrep.simxStart('127.0.0.1', 19997, true, true, 2000, 5);
+	% If connection successed
+	fprintf('Connection %d to remote API server open.\n', id);
 
-    % If the connection has failed
-    if id < 0
-        fprintf('Failed connecting to remote API server. Exiting.\n');
-        
-        vrep.delete();
+	% Make sure we close the connection whenever the script is interrupted
+	cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
 
-        return;
-    end
+	% Start the simulation
+	vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
 
-    % If connection successed
-    fprintf('Connection %d to remote API server open.\n', id);
+	% Retrieve all handles, mostly the Hokuyo
+	h = youbot_init(vrep, id);
+	h = youbot_hokuyo_init(vrep, h);
 
-    % Make sure we close the connection whenever the script is interrupted
-    cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
-
-    % Start the simulation
-    vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
-
-    % Retrieve all handles, mostly the Hokuyo
-    h = youbot_init(vrep, id);
-    h = youbot_hokuyo_init(vrep, h);
-
-    % Make sure everything is settled before we start (wait for the simulation to start)
-    pause(0.2);
+	% Make sure everything is settled before we start (wait for the simulation to start)
+	pause(0.2);
 
 
-    %%%%%%%%%%%%%%%%%%%%%%%
-    %% Robot controlling %%
-    %%%%%%%%%%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Resources initialization %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    if onlyNav
-        navigation(vrep, id, h);
-    else
-        manipulation(vrep, id, h);
-    end
+	% Timestep of the simulator
+	timestep = .05;
+
+	% Map and robot instance
+	map = classes.MapManager(15, 15, 5);
+	robot = classes.RobotController();
+
+
+	%%%%%%%%%%%%%%%%
+	%% Navigation %%
+	%%%%%%%%%%%%%%%%
+	
+	navigation(vrep, id, h, timestep, map, robot);
+
+
+	%%%%%%%%%%%%%%%%%%
+	%% Manipulation %%
+	%%%%%%%%%%%%%%%%%%
+
+	manipulation(vrep, id, h, timestep, map, robot);
 end

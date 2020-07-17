@@ -38,5 +38,3 @@ When all resources are installed :
 2. Launch MATLAB and run the `startup.m` script (by default, MATLAB should run it automatically);
 3. Lauch VREP and open the scene;
 4. Run the `main.m` script.
-
-In the `main.m` script, the flag `onlyNav` determine whether or not the robot should manipulate objects (milestone manipulation).
