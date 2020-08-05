@@ -30,8 +30,8 @@ classdef RobotController < handle
 		movPrecision = 0.3;
 
 		% Parameters when the robot is stuck
-		stuckTresh = 0.8;
-		stuckDist = 0.5;
+		stuckTresh = 0.6;
+		stuckDist = 0.4;
 	end
 
 
