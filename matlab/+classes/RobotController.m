@@ -76,6 +76,10 @@ classdef RobotController < handle
 			% [x y] values (because y is useless for this project)
 			relPos = relPos(1:2);
 		end
+
+		function relPos = getEstimatedRelativePosition(obj)
+			% TO DO
+		end
 		
 		function absPos = getAbsolutePosition(obj, relPos)
 			% Get the absolute position of the robot. The absolute position

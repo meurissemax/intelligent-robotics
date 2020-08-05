@@ -9,7 +9,12 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 	%%%%%%%%%%%%%%%%%%%%
 	
 	% Initialize the initial position of the robot
-	relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+	if slam
+		relPos = [0, 0];
+	else
+		relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+	end
+
 	robot.setInitPos(relPos - [map.mapWidth, map.mapHeight]);
 	
 	% Set the position of the robot and his neighborhood to 0
@@ -64,8 +69,13 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 		%% Get position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		
-		% Get position and orientation from sensors
-		relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+		% Get position and orientation
+		if slam
+			relPos = robot.getEstimatedRelativePosition();
+		else
+			relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+		end
+
 		absPos = robot.getAbsolutePosition(relPos);
 		
 		orientation = robot.getOrientation(vrep, id, h);
