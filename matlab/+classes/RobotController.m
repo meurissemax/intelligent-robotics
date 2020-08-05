@@ -219,23 +219,22 @@ classdef RobotController < handle
 			% We define default values
 			obj.forwBackVel = 0;
 			obj.rotVel = 0;
-
+			
 			if backward
-				forward = obj.forwBackVelFact * sum(distObjPos);
+				obj.forwBackVel = obj.forwBackVelFact * sum(distObjPos);
 			else
 				forward = -obj.forwBackVelFact * sum(distObjPos);
-			end
-			
-			rotation = obj.rotVelFact * angdiff(rotAngl, orientation(3));
+				rotation = obj.rotVelFact * angdiff(rotAngl, orientation(3));
 
-			% We set velocities of the robot according to its objective
-			if distObjRot > 0.5
-				obj.rotVel = rotation;
-			elseif distObjRot > 0.01
-				obj.forwBackVel = forward / 2;
-				obj.rotVel = rotation;
-			else
-				obj.forwBackVel = forward;
+				% We set velocities of the robot according to its objective
+				if distObjRot > 0.5
+					obj.rotVel = rotation;
+				elseif distObjRot > 0.01
+					obj.forwBackVel = forward / 2;
+					obj.rotVel = rotation;
+				else
+					obj.forwBackVel = forward;
+				end
 			end
 		end
 		

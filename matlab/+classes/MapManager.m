@@ -261,7 +261,7 @@ classdef MapManager < handle
 			% Export the representation of the map (the 'occupancyMap'
 			% object) in a 'map.mat' file.
 
-			save('mat/map', obj.map);
+			save('mat/map', 'obj.map');
 
 			fprintf('Map representation has been exported.\n');
 		end
