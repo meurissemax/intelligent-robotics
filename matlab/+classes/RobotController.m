@@ -20,7 +20,6 @@ classdef RobotController < handle
 
 		% Parameters for controlling the robot's wheels
 		forwBackVel = 0;
-		leftRightVel = 0;
 		rotVel = 0;
 
 		% Velocity multipliers
@@ -64,7 +63,7 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 		
-		function relPos = getRelativePosition(~, vrep, id, h)
+		function relPos = getRelativePositionFromGPS(~, vrep, id, h)
 			% Get the relative position of the robot. The relative position
 			% is the position obtained via the GPS of the robot. So, this
 			% position does not correspond to the position of the robot
@@ -78,14 +77,14 @@ classdef RobotController < handle
 			relPos = relPos(1:2);
 		end
 		
-		function absPos = getAbsolutePosition(obj, vrep, id, h)
+		function absPos = getAbsolutePosition(obj, relPos)
 			% Get the absolute position of the robot. The absolute position
 			% corresponds to the position of the robot in the occupancy
 			% map.
 			%
-			% The relative position is calculated as : relPos - initPos.
+			% The absolute position is calculated as : relPos - initPos.
 
-			absPos = obj.getRelativePosition(vrep, id, h) - obj.initPos;
+			absPos = relPos - obj.initPos;
 		end
 
 		function orientation = getOrientation(~, vrep, id, h)
@@ -190,7 +189,6 @@ classdef RobotController < handle
 			% We check if robot has accomplished its objective
 			if sum(distObj < obj.movPrecision) == numel(distObj)
 				obj.forwBackVel = 0;
-				obj.leftRightVel = 0;
 				obj.rotVel = 0;
 
 				hasAccCurrentObj = true;
@@ -229,8 +227,11 @@ classdef RobotController < handle
 		
 		function h = drive(obj, vrep, h)
 			% Use the defined velocities of the robot to move it.
+			% Remark : left-right velocity has been set to 0 because
+			% we decided to not use it since it is very difficult
+			% to apply SLAM techniques with such displacements.
 
-			h = youbot_drive(vrep, h, obj.forwBackVel, obj.leftRightVel, obj.rotVel);
+			h = youbot_drive(vrep, h, obj.forwBackVel, 0, obj.rotVel);
 		end
 	end
 end

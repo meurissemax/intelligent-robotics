@@ -45,11 +45,19 @@ function main()
 	%% Resources initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+	% Map dimensions
+	mapWidth = 15;
+	mapHeight = 15;
+	mapPrec = 5;
+
+	% SLAM (for navigation)
+	slam = false;
+
 	% Timestep of the simulator
 	timestep = .05;
 
 	% Map and robot instance
-	map = classes.MapManager(15, 15, 5);
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
 	robot = classes.RobotController();
 
 
@@ -57,7 +65,7 @@ function main()
 	%% Navigation %%
 	%%%%%%%%%%%%%%%%
 	
-	navigation(vrep, id, h, timestep, map, robot);
+	navigation(vrep, id, h, timestep, map, robot, slam);
 
 
 	%%%%%%%%%%%%%%%%%%

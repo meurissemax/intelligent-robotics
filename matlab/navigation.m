@@ -2,19 +2,19 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function navigation(vrep, id, h, timestep, map, robot)
+function navigation(vrep, id, h, timestep, map, robot, slam)
 	
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialisation %%
 	%%%%%%%%%%%%%%%%%%%%
 	
 	% Initialize the initial position of the robot
-	relPos = robot.getRelativePosition(vrep, id, h);
+	relPos = robot.getRelativePositionFromGPS(vrep, id, h);
 	robot.setInitPos(relPos - [map.mapWidth, map.mapHeight]);
 	
 	% Set the position of the robot and his neighborhood to 0
 	% (free position)
-	absPos = robot.getAbsolutePosition(vrep, id, h);
+	absPos = robot.getAbsolutePosition(relPos);
 	map.setNeighborhood(absPos, 2, 1 / map.mapPrec, 0);
 
 	% Initialize the mesh grid (for the data retrieving
@@ -65,7 +65,9 @@ function navigation(vrep, id, h, timestep, map, robot)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		
 		% Get position and orientation from sensors
-		absPos = robot.getAbsolutePosition(vrep, id, h);
+		relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+		absPos = robot.getAbsolutePosition(relPos);
+		
 		orientation = robot.getOrientation(vrep, id, h);
 
 
