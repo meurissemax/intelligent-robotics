@@ -76,19 +76,19 @@ classdef RobotController < handle
 			% [x y] values (because y is useless for this project)
 			relPos = relPos(1:2);
 		end
-
-		function relPos = getEstimatedRelativePosition(obj)
-			% TO DO
-		end
 		
-		function absPos = getAbsolutePosition(obj, relPos)
+		function absPos = getAbsolutePositionFromGPS(obj, vrep, id, h)
 			% Get the absolute position of the robot. The absolute position
 			% corresponds to the position of the robot in the occupancy
 			% map.
 			%
 			% The absolute position is calculated as : relPos - initPos.
 
-			absPos = relPos - obj.initPos;
+			absPos = obj.getRelativePositionFromGPS(vrep, id, h) - obj.initPos;
+		end
+
+		function absPos = getEstimatedPosition(obj)
+			% TO DO
 		end
 
 		function orientation = getOrientation(~, vrep, id, h)
@@ -199,33 +199,43 @@ classdef RobotController < handle
 			end
 		end
 		
-		function setVelocitiesToObjective(obj, position, orientation, objective, mapPrec)
+		function setVelocitiesToObjective(obj, position, orientation, objective, backward)
 			% Set the velocities of the robot according to its position
 			% 'position' and its orientation 'orientation' so that the
 			% robot can reach the objective 'objective'.
+			% The 'backward' parameter is a boolean that indicates if
+			% the robot has to go forward (false) or backward (true).
 
-			% Get angle between robot position and objective
+			% We get angle between robot position and objective position
 			a = [0, -1];
-			b = [(objective(1) / mapPrec) - position(1), (objective(2) / mapPrec) - position(2)];
+			b = [objective(1) - position(1), objective(2) - position(2)];
 			
-			rotAngl = sign((objective(1) / mapPrec) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
-			
-			% We get distance to the objective
-			distObj = [abs(position(1) - objective(1)), abs(position(2) - objective(2))];
+			rotAngl = sign(objective(1) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 
-			% We define velocities according to the rotation angle
-			forward = -obj.forwBackVelFact * sum(distObj);
+			% We get distance to objective, for position and rotation
+			distObjPos = [abs(position(1) - objective(1)), abs(position(2) - objective(2))];
+			distObjRot = abs(angdiff(rotAngl, orientation(3)));
+			
+			% We define default values
+			obj.forwBackVel = 0;
+			obj.rotVel = 0;
+
+			if backward
+				forward = obj.forwBackVelFact * sum(distObjPos);
+			else
+				forward = -obj.forwBackVelFact * sum(distObjPos);
+			end
+			
 			rotation = obj.rotVelFact * angdiff(rotAngl, orientation(3));
 
-			if rotAngl > pi / 2
-				obj.forwBackVel = 0;
+			% We set velocities of the robot according to its objective
+			if distObjRot > 0.5
 				obj.rotVel = rotation;
-			elseif rotAngl > pi / 3
-				obj.forwBackVel = forward;
-				obj.rotVel = rotation / 2;
+			elseif distObjRot > 0.01
+				obj.forwBackVel = forward / 2;
+				obj.rotVel = rotation;
 			else
 				obj.forwBackVel = forward;
-				obj.rotVel = rotation / 4;
 			end
 		end
 		

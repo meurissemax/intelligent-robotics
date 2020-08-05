@@ -8,18 +8,22 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 	%% Initialisation %%
 	%%%%%%%%%%%%%%%%%%%%
 	
-	% Initialize the initial position of the robot
+	% Initialize the initial position of the robot and
+	% get it
+	% Remark : for the SLAM, there is no difference between
+	% relative (relPos) and absolute (absPos) position. We
+	% completely define the coordinate system of the robot
+	% since it only depends of our approximations
 	if slam
-		relPos = [0, 0];
+		robot.setInitPos([map.mapWidth, map.mapHeight]);
+		absPos = [map.mapWidth, map.mapHeight];
 	else
-		relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+		robot.setInitPos(robot.getRelativePositionFromGPS(vrep, id, h) - [map.mapWidth, map.mapHeight]);
+		absPos = robot.getAbsolutePositionFromGPS(vrep, id, h);
 	end
-
-	robot.setInitPos(relPos - [map.mapWidth, map.mapHeight]);
 	
 	% Set the position of the robot and his neighborhood to 0
 	% (free position)
-	absPos = robot.getAbsolutePosition(relPos);
 	map.setNeighborhood(absPos, 2, 1 / map.mapPrec, 0);
 
 	% Initialize the mesh grid (for the data retrieving
@@ -71,13 +75,11 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 		
 		% Get position and orientation
 		if slam
-			relPos = robot.getEstimatedRelativePosition();
+			absPos = robot.getEstimatedPosition();
 		else
-			relPos = robot.getRelativePositionFromGPS(vrep, id, h);
+			absPos = robot.getAbsolutePositionFromGPS(vrep, id, h);
 		end
 
-		absPos = robot.getAbsolutePosition(relPos);
-		
 		orientation = robot.getOrientation(vrep, id, h);
 
 
@@ -91,9 +93,6 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 		% Update the map with data from Hokuyo
 		map.setPoints(inValue, 0);
 		map.setPoints(inPts, 1);
-		
-		% Adjust the position (to correspond to occupancy matrix coordinates)
-		absPos = round(absPos .* map.mapPrec);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -147,7 +146,7 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 					from = round(inPts(inFront, :) .* map.mapPrec);
 
 					% We determine the new path
-					pathList = map.getNextPathToExplore(absPos, from);
+					pathList = map.getNextPathToExplore(round(absPos .* map.mapPrec), from);
 
 					% If we can not find a new path, the map has been probably
 					% fully explored.
@@ -163,27 +162,32 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 				end
 			end
 
+			% Save the next objective to display it
+			mapObjective = pathList(end, :);
+
 			% Get the next objective
 			[objective(1), objective(2)] = utils.toCartesian(pathList(end, 1), pathList(end, 2), size(map.getOccupancyMatrix(), 1));
+			objective = objective ./ map.mapPrec;
+
+			% Remove the next objective from the path
 			pathList(end, :) = [];
 		end
 
 
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		%% Check if the objective is accomplished %%
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		% Move the robot depending of the objective %
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+		% We check if robot has accomplished its current objective
 		hasAccCurrentObj = robot.checkObjective(absPos, objective);
 
-
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		% Move the robot to the objective (if not accomplished) %
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+		% If robot has not accomplished its objective, we set the velocities
 		if ~hasAccCurrentObj
-			robot.setVelocitiesToObjective(absPos, orientation, objective, map.mapPrec);
-			h = robot.drive(vrep, h);
+			robot.setVelocitiesToObjective(absPos, orientation, objective, stuck);
 		end
+
+		% We drive the robot
+		h = robot.drive(vrep, h);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -191,7 +195,7 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		
 		% Show the map with robot (absolute) position and path
-		map.show(absPos, pathList);
+		map.show(round(absPos .* map.mapPrec), [pathList; mapObjective]);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
