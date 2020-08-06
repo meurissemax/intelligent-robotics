@@ -93,7 +93,10 @@ classdef RobotController < handle
 		end
 
 		function absPos = getEstimatedPosition(obj)
-			% TO DO
+			% Estimate the position of the robot based on some parameters.
+
+			% TEMPORARY CODE, REAL CODE TO DO
+			absPos = obj.initPos;
 		end
 
 		function orientation = getOrientation(~, vrep, id, h)
@@ -150,9 +153,9 @@ classdef RobotController < handle
 	
 				% Get the orientation
 				distAngl = [
-					abs(angdiff(orientation(3), pi / 2)),
-					abs(angdiff(orientation(3), -pi / 2)),
-					abs(angdiff(orientation(3), 0)),
+					abs(angdiff(orientation(3), pi / 2)), ...
+					abs(angdiff(orientation(3), -pi / 2)), ...
+					abs(angdiff(orientation(3), 0)), ...
 					abs(angdiff(orientation(3), pi))
 				];
 				

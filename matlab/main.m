@@ -22,6 +22,10 @@ function main()
 	% Timestep of the simulator
 	timestep = .05;
 
+	% Map and robot instance
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
+	robot = classes.RobotController();
+
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Simulator initialisation %%
@@ -63,25 +67,18 @@ function main()
 	pause(0.2);
 
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% Resources initialization %%
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-	% Map and robot instance
-	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
-	robot = classes.RobotController();
-
-
 	%%%%%%%%%%%%%%%%
-	%% Navigation %%
+	%% Milestones %%
 	%%%%%%%%%%%%%%%%
 	
 	navigation(vrep, id, h, timestep, map, robot, slam, scenePath);
-
-
-	%%%%%%%%%%%%%%%%%%
-	%% Manipulation %%
-	%%%%%%%%%%%%%%%%%%
-
 	manipulation(vrep, id, h, timestep, map, robot);
+
+
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Simulator termination %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	
+	vrep.simxStopSimulation(id, vrep.simx_opmode_oneshot_wait);
+	vrep.simxFinish(-1);
 end
