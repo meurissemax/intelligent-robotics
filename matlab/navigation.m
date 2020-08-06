@@ -131,16 +131,17 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 				% If yes, we stop the simulation : exploration is done.
 				% If no, we define a new path.
 
-				if map.isExplored()
+				% We stop the robot during the calculation
+				robot.stop(absPos);
+				h = robot.drive(vrep, h);
 
-					% Stop the robot
-					robot.stop(vrep, h, absPos);
+				if map.isExplored()
 
 					% Export the map
 					map.export(scenePath);
 					
 					% Stop the simulation
-					pause(3);
+					pause(2);
 					break;
 				else
 					% We get the point from which we determine new path
@@ -154,15 +155,12 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 					% If we can not find a new path, the map has been probably
 					% fully explored.
 					if pathList == Inf
-						
-						% Stop the robot
-						robot.stop(vrep, h, absPos);
 
 						% Export the map
 						map.export(scenePath);
 						
 						% Stop the simulation
-						pause(3);
+						pause(2);
 						break;
 					end
 				end

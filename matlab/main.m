@@ -50,7 +50,7 @@ function main()
 	cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
 
 	% Open the desired scene
-	vrep.simxLoadScene(id, scenePath, 1, vrep.simx_opmode_blocking);
+	vrep.simxLoadScene(id, scenePath, 1, vrep.simx_opmode_oneshot_wait);
 
 	% Start the simulation
 	vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);

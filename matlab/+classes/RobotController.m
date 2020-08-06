@@ -243,7 +243,7 @@ classdef RobotController < handle
 			end
 		end
 
-		function stop(obj, vrep, h, pos)
+		function stop(obj, pos)
 			% Stop the robot and save its position. This function is
 			% useful at the end of the navigation to stop the robot
 			% during the exportation of the map and to save its
@@ -255,9 +255,6 @@ classdef RobotController < handle
 
 			% Save stop position of the robot
 			obj.stopPos = pos;
-
-			% Stop the robot
-			obj.drive(vrep, h);
 		end
 		
 		function h = drive(obj, vrep, h)
