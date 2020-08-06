@@ -15,7 +15,7 @@ function newMesh = simplifyPolygon(polygon)
 	while true
 		number_change = 0;
 		newMesh = zeros(2, size(polygon, 2));
-		polygon = horzcat(polygon, polygon(:, 2));
+		polygon = horzcat(polygon, polygon(:, 2)); %#ok<AGROW>
 		size_p = size(polygon, 2);
 		
 		i = 1;
@@ -27,7 +27,6 @@ function newMesh = simplifyPolygon(polygon)
 			
 			if norm(p2 - p1) < 0.05
 				i = i + 2;
-				has_small = true;
 			else
 				p3 = polygon(:, i + 2);
 				

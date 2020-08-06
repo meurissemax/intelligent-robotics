@@ -64,7 +64,7 @@ function optimalPath = astar(startX, startY, map, goalRegister, connectingDistan
 		MINopenFSCORE = min(min(FScore));
 		
 		if MINopenFSCORE == inf
-			optimalPath = [inf];
+			optimalPath = (inf);
 			RECONSTRUCTPATH = 0;
 			
 			break

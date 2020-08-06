@@ -66,6 +66,14 @@ classdef MapManager < handle
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
 
+			% Only assign free position to points that are not walls.
+			% This verification is useful because the Hokuyo is not
+			% always reliable for the point detection
+			if value == 0
+				occVal = getOccupancy(obj.map, points);
+				points = points(occVal < 0.9, :);
+			end
+
 			setOccupancy(obj.map, points, value);
 		end
 
@@ -265,7 +273,7 @@ classdef MapManager < handle
 			exportMap = obj.map;
 
 			% Get the name of the scene
-			[filepath, name, ext] = fileparts(scenePath);
+			[~, name, ~] = fileparts(scenePath);
 
 			% Save the map
 			save(strcat('mat/', name), 'exportMap');
