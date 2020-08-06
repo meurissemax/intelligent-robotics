@@ -34,7 +34,8 @@ To run the code, the different resources used for this project (mentioned above)
 
 When all resources are installed :
 
-1. Put the `trs/` folder (with appropriate modifications) in the `matlab/` folder;
+1. Put the `trs/` folder (with appropriate modifications, available [here](http://ulgrobotics.github.io/trs/setup.html#install)) in the `matlab/` folder;
 2. Launch MATLAB and run the `startup.m` script (by default, MATLAB should run it automatically);
-3. Lauch VREP and open the scene;
-4. Run the `main.m` script.
+3. Lauch VREP;
+4. Update the "Values initialization" part of the `main.m` file (choose the scene, the map dimensions, etc);
+5. Run the `main.m` script.

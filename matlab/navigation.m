@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function navigation(vrep, id, h, timestep, map, robot, slam)
+function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 	
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialisation %%
@@ -134,7 +134,7 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 				if map.isExplored()
 
 					% Export the map
-					map.export();
+					map.export(scenePath);
 					
 					% Stop the simulation
 					pause(3);
@@ -153,7 +153,7 @@ function navigation(vrep, id, h, timestep, map, robot, slam)
 					if pathList == Inf
 
 						% Export the map
-						map.export();
+						map.export(scenePath);
 						
 						% Stop the simulation
 						pause(3);

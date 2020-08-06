@@ -27,7 +27,7 @@ classdef MapManager < handle
 		inflatedFact = 0.6;
 
 		% Exploration threshold (percentage of points to visit)
-		explThresh = 0.999;
+		explThresh = 0.985;
 
 		% Possible connection distance between points for
 		% path algorithm
@@ -257,13 +257,18 @@ classdef MapManager < handle
 			drawnow;
 		end
 
-		function export(obj)
+		function export(obj, scenePath)
 			% Export the representation of the map (the 'occupancyMap'
-			% object) in a 'map.mat' file.
-			
+			% object) in a '<scene name>.mat' file.
+
+			% Get the Matlab variable to export
 			exportMap = obj.map;
 
-			save('mat/map', 'exportMap');
+			% Get the name of the scene
+			[filepath, name, ext] = fileparts(scenePath);
+
+			% Save the map
+			save(strcat('mat/', name), 'exportMap');
 
 			fprintf('Map representation has been exported.\n');
 		end

@@ -4,6 +4,25 @@
 
 function main()
 
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Values initialization %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	% Scene
+	scenePath = '../resources/scenes/house_2020.ttt';
+
+	% Map dimensions
+	mapWidth = 15;
+	mapHeight = 15;
+	mapPrec = 5;
+
+	% SLAM (for navigation)
+	slam = false;
+
+	% Timestep of the simulator
+	timestep = .05;
+
+
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Simulator initialisation %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -30,6 +49,9 @@ function main()
 	% Make sure we close the connection whenever the script is interrupted
 	cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
 
+	% Open the desired scene
+	vrep.simxLoadScene(id, scenePath, 1, vrep.simx_opmode_blocking);
+
 	% Start the simulation
 	vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
 
@@ -45,17 +67,6 @@ function main()
 	%% Resources initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	% Map dimensions
-	mapWidth = 15;
-	mapHeight = 15;
-	mapPrec = 5;
-
-	% SLAM (for navigation)
-	slam = false;
-
-	% Timestep of the simulator
-	timestep = .05;
-
 	% Map and robot instance
 	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
 	robot = classes.RobotController();
@@ -65,7 +76,7 @@ function main()
 	%% Navigation %%
 	%%%%%%%%%%%%%%%%
 	
-	navigation(vrep, id, h, timestep, map, robot, slam);
+	navigation(vrep, id, h, timestep, map, robot, slam, scenePath);
 
 
 	%%%%%%%%%%%%%%%%%%
