@@ -280,6 +280,28 @@ classdef MapManager < handle
 
 			fprintf('Map representation has been exported.\n');
 		end
+
+		function load(obj, scenePath)
+			% Load the representation of a map (the 'occupancyMap'
+			% object) from a '<scene name>.mat' file.
+
+			% Get the name of the scene
+			[~, name, ~] = fileparts(scenePath);
+
+			% Load the map
+			load(strcat('mat/', name, '.mat'), 'exportMap');
+
+			% Save the loaded map
+			obj.map = exportMap;
+
+			% Update information of the object
+			obj.mapPrec = exportMap.Resolution;
+
+			resizeFactor = 2 * exportMap.Resolution;
+
+			obj.mapWidth = exportMap.GridSize(1) / resizeFactor;
+			obj.mapHeight = exportMap.GridSize(2) / resizeFactor;
+		end
 	end
 
 	methods (Access = private)

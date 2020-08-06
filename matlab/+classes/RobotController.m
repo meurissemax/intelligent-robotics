@@ -10,14 +10,16 @@ classdef RobotController < handle
 	% Attributes %
 	%%%%%%%%%%%%%%
 
-	properties (Access = private)
-		% Initial position of the robot
-		initPos
-
+	properties (Access = public)
 		% Position of the robot (useful at the end
 		% of the navigation, to remember the final
 		% position to begin the manipulation)
 		stopPos
+	end
+
+	properties (Access = private)
+		% Initial position of the robot
+		initPos
 
 		% Mesh grid (for Hokuyo's data)
 		X
