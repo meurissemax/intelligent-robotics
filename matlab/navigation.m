@@ -133,6 +133,9 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 
 				if map.isExplored()
 
+					% Stop the robot
+					robot.stop(vrep, h, absPos);
+
 					% Export the map
 					map.export(scenePath);
 					
@@ -151,6 +154,9 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 					% If we can not find a new path, the map has been probably
 					% fully explored.
 					if pathList == Inf
+						
+						% Stop the robot
+						robot.stop(vrep, h, absPos);
 
 						% Export the map
 						map.export(scenePath);

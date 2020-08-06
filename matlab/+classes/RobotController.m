@@ -14,6 +14,11 @@ classdef RobotController < handle
 		% Initial position of the robot
 		initPos
 
+		% Position of the robot (useful at the end
+		% of the navigation, to remember the final
+		% position to begin the manipulation)
+		stopPos
+
 		% Mesh grid (for Hokuyo's data)
 		X
 		Y
@@ -236,6 +241,23 @@ classdef RobotController < handle
 					obj.forwBackVel = forward;
 				end
 			end
+		end
+
+		function stop(obj, vrep, h, pos)
+			% Stop the robot and save its position. This function is
+			% useful at the end of the navigation to stop the robot
+			% during the exportation of the map and to save its
+			% position for the next phase (manipulation).
+
+			% Set all velocities to 0
+			obj.forwBackVel = 0;
+			obj.rotVel = 0;
+
+			% Save stop position of the robot
+			obj.stopPos = pos;
+
+			% Stop the robot
+			obj.drive(vrep, h);
 		end
 		
 		function h = drive(obj, vrep, h)
