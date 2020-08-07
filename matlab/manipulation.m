@@ -66,7 +66,10 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	
 	% Find center positions and radius of the tables
 	map.findTables();
+
+	% Get information for the 'explore' state
 	tablesPositions = map.tablesCenterPositions;
+	tablesRadius = map.tablesRadius;
 
 
 	%%%%%%%%%%%%%%%
@@ -141,12 +144,19 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 						robot.stop(absPos);
 						h = robot.drive(vrep, h);
 
-						% We pop the next table position
+						% We pop the next table information
 						nextTable = tablesPositions(end, :);
+						nextRadius = tablesRadius(end);
+
 						tablesPositions(end, :) = [];
+						tablesRadius(end) = [];
+
+						% Setup point to determine path
+						occMatPos = round(absPos .* map.mapPrec);
+						nextPoint = [nextTable(2), nextTable(1)] + nextRadius;
 
 						% We get path to the next table
-						pathList = map.getNextPathToExplore(round(absPos .* map.mapPrec), round(absPos .* map.mapPrec), nextTable);
+						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
 					end
 				end
 
@@ -245,7 +255,13 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		
 		% Show the map with robot (absolute) position and path (if any)
-		map.show(round(absPos .* map.mapPrec), [pathList; mapObjective]);
+		if ~isempty(pathList)
+			pathDisp = [pathList; mapObjective];
+		else
+			pathDisp = [];
+		end
+
+		map.show(round(absPos .* map.mapPrec), pathDisp);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
