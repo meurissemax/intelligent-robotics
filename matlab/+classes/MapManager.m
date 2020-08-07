@@ -45,7 +45,7 @@ classdef MapManager < handle
 
 	methods (Access = public)
 
-		function obj = MapManager(mapWidth, mapHeight, mapPrec, tablesRadius)
+		function obj = MapManager(mapWidth, mapHeight, mapPrec)
 			% Constructor of the class. It sets the dimensions and the
 			% precision of the map and instantiate the occupancy map.
 			
@@ -53,9 +53,6 @@ classdef MapManager < handle
 			obj.mapWidth = mapWidth;
 			obj.mapHeight = mapHeight;
 			obj.mapPrec = mapPrec;
-
-			% Set the tables radius
-			obj.tablesRadius = tablesRadius;
 			
 			% Instantiate the occupancy map (with dimensions x2 because
 			% we do not know where the robot starts in the map)
@@ -206,11 +203,31 @@ classdef MapManager < handle
 			end
 		end
 		
-		function findTablesCenterPositions(obj)
-			% Find the center position of each table of the map.
+		function findTables(obj)
+			% Find the center position and radius of each
+			% table of the map.
 
-			% TO DO
-			obj.tablesCenterPositions = [75, 75];
+			% Initialize parameter
+			guessRadius = 3;
+			resizeFactor = 4;
+
+			% Inflate a copy of the map
+			mapInflated = copy(obj.map);
+			inflate(mapInflated, 0.1);
+
+			% Get corresponding occupancy matrix
+			occMatInf = occupancyMatrix(mapInflated);
+
+			% Increase the resolution of the occupancy matrix
+			occMatInf = imresize(occMatInf, resizeFactor);
+
+			% Find the centers and radii of the tables
+			radiusRange = [guessRadius * resizeFactor, guessRadius * resizeFactor * 3];
+			[centers, radii] = imfindcircles(occMatInf, radiusRange);
+
+			% Set centers positions and radii
+			obj.tablesCenterPositions = round(centers ./ resizeFactor);
+			obj.tablesRadius = round(radii ./ resizeFactor);
 		end
 
 		function show(obj, varargin)
@@ -285,7 +302,11 @@ classdef MapManager < handle
 
 			% Tables positions
 			if ~isempty(obj.tablesCenterPositions)
-				viscircles(obj.tablesCenterPositions, obj.tablesRadius, 'Color', 'b', 'LineWidth', 2);
+				i_centers = obj.tablesCenterPositions(:, 2);
+				j_centers = obj.tablesCenterPositions(:, 1);
+				[x, y] = utils.toCartesian(i_centers, j_centers, size(occMat, 2));
+				
+				viscircles([x, y], obj.tablesRadius, 'Color', 'b', 'LineWidth', 2);
 				hold on;
 			end
 

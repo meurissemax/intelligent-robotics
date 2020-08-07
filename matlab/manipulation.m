@@ -54,8 +54,8 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	%% Tables information %%
 	%%%%%%%%%%%%%%%%%%%%%%%%
 	
-	% Find center positions of the different tables
-	map.findTablesCenterPositions();
+	% Find center positions and radius of the tables
+	map.findTables();
 
 
 	%%%%%%%%%%%%%%%

@@ -9,16 +9,12 @@ This project has been realized by :
 
 as part of the *Introduction to intelligent robotics* course given by Professor **Sacré** to the master students of Civil Engineering at the [University of Liège](https://www.uliege.be/) during the academic year 2019-2020 and uses the following resources to run :
 
-* [MATLAB R2020a](https://www.mathworks.com/products/matlab.html) with [Robotics system](https://www.mathworks.com/products/robotics.html) and [Navigation](https://www.mathworks.com/products/navigation.html) toolboxes
+* [MATLAB R2020a](https://www.mathworks.com/products/matlab.html) with : 
+  * [Robotics System](https://www.mathworks.com/products/robotics.html) toolbox
+  * [Navigation](https://www.mathworks.com/products/navigation.html) toolbox
+  * [Image Processing](https://www.mathworks.com/products/image.html) toolbox
 * [TRS](http://ulgrobotics.github.io/trs/) : an open-source recipe for teaching/learning robotics with a simulator
 * [VREP PRO EDU (version 3.6.2)](https://www.coppeliarobotics.com/previousVersions)
-
-## Compatibility
-
-MATLAB version R2020a was used. The code works with this version but also with version R2019b.
-
-For R2019a, the `occupancyMap` must be replaced by `robotics.OccupancyGrid`.
-For previous versions, the user must adapt the code to his version of MATLAB.
 
 ## Milestone navigation
 
