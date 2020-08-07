@@ -103,10 +103,14 @@ classdef MapManager < handle
 			end
 		end
 		
-		function nextPath = getNextPathToExplore(obj, pos, from)
+		function nextPath = getNextPathToExplore(obj, pos, from, varargin)
 			% Get the path to the next point to explore in the map. The
 			% path is calculated from the point [x y] 'from' and requires
 			% the position 'pos' of the robot.
+			%
+			% An pre-determined point can be passed to the function. In
+			% this case, the function will simply determine path to this
+			% point.
 
 			% Get the occupancy matrix
 			occMat = obj.getOccupancyMatrix();
@@ -117,15 +121,19 @@ classdef MapManager < handle
 			occMatInf = occupancyMatrix(mapInflated, 'ternary');
 			
 			% Get next point to explore
-			nextPoint = obj.getNextPointToExplore([size(occMat, 1) - from(2) + 1, from(1)], occMatInf);
+			if nargin > 3
+				nextPoint = varargin{1};
+			else
+				nextPoint = obj.getNextPointToExplore([size(occMat, 1) - from(2) + 1, from(1)], occMatInf);
 
-			% If we can not find new point, the map is probably explored
-			if nextPoint == Inf
-				nextPath = Inf;
+				% If we can not find new point, the map is probably explored
+				if nextPoint == Inf
+					nextPath = Inf;
 
-				fprintf('No new point to explore available. Mas has probably been explored.\n');
-				
-				return;
+					fprintf('No new point to explore available. Mas has probably been explored.\n');
+					
+					return;
+				end
 			end
 			
 			% Get the path to this point

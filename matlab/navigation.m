@@ -178,9 +178,9 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 		end
 
 
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		% Move the robot depending of the objective %
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%% Move the robot depending of the objective %%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		% We check if robot has accomplished its current objective
 		hasAccCurrentObj = robot.checkObjective(absPos, objective);
