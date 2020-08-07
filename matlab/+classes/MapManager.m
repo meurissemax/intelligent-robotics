@@ -210,6 +210,8 @@ classdef MapManager < handle
 			%                by a dark point)
 			%   - pathList : the path (will be display by mauve points and
 			%                dark lines)
+			% 	- hokuyo   : the points detected by the Hokuyo (will be
+			%                displayed by cyan points)
 
 			% Get the occupancy matrix
 			occMat = obj.getOccupancyMatrix();
@@ -219,6 +221,15 @@ classdef MapManager < handle
 			[x_free, y_free] = utils.toCartesian(i_free, j_free, size(occMat, 1));
 			plot(x_free, y_free, '.g', 'MarkerSize', 10);
 			hold on;
+
+			% Points detected by Hokuyo
+			if nargin > 3
+				hokuyo = varargin{3};
+				hokuyo = round(hokuyo .* obj.mapPrec);
+				
+				plot(hokuyo(:, 1), hokuyo(:, 2), '.c', 'MarkerSize', 10);
+				hold on;
+			end
 
 			% Visited occupied points
 			[i_occ, j_occ] = find(occMat == 1);

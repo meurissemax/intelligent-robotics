@@ -199,7 +199,7 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		
 		% Show the map with robot (absolute) position and path
-		map.show(round(absPos .* map.mapPrec), [pathList; mapObjective]);
+		map.show(round(absPos .* map.mapPrec), [pathList; mapObjective], [inPts; inValue]);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
