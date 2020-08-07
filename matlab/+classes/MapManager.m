@@ -18,6 +18,10 @@ classdef MapManager < handle
 		% Precision of the map
 		mapPrec
 
+		% Tables information
+		tablesRadius
+		tablesCenterPositions
+
 		% Representation of the map
 		map
 	end
@@ -41,7 +45,7 @@ classdef MapManager < handle
 
 	methods (Access = public)
 
-		function obj = MapManager(mapWidth, mapHeight, mapPrec)
+		function obj = MapManager(mapWidth, mapHeight, mapPrec, tablesRadius)
 			% Constructor of the class. It sets the dimensions and the
 			% precision of the map and instantiate the occupancy map.
 			
@@ -49,6 +53,9 @@ classdef MapManager < handle
 			obj.mapWidth = mapWidth;
 			obj.mapHeight = mapHeight;
 			obj.mapPrec = mapPrec;
+
+			% Set the tables radius
+			obj.tablesRadius = tablesRadius;
 			
 			% Instantiate the occupancy map (with dimensions x2 because
 			% we do not know where the robot starts in the map)
@@ -198,20 +205,28 @@ classdef MapManager < handle
 				fprintf('Map has been fully explored !\n');
 			end
 		end
+		
+		function findTablesCenterPositions(obj)
+			% Find the center position of each table of the map.
+
+			% TO DO
+			obj.tablesCenterPositions = [75, 75];
+		end
 
 		function show(obj, varargin)
 			% Display the map. By default, the function displays the
 			% occupancy matrix (corresponding to the occupancy map) with
 			% some colors : green for accessible points and red for
-			% unaccessible points.
+			% unaccessible points and the differents tables of the
+			% map if there are defined.
 			%
 			% Some other arguments can be passed :
-			%   - pos      : the position of the robot (will be displayed
-			%                by a dark point)
-			%   - pathList : the path (will be display by mauve points and
-			%                dark lines)
-			% 	- hokuyo   : the points detected by the Hokuyo (will be
-			%                displayed by cyan points)
+			%	- pos		: the position of the robot (will be displayed
+			%				  by a dark point)
+			%	- pathList	: the path (will be display by mauve points and
+			%				  dark lines)
+			%	- hokuyo	: the points detected by the Hokuyo (will be
+			%				  displayed by cyan points)
 
 			% Get the occupancy matrix
 			occMat = obj.getOccupancyMatrix();
@@ -266,6 +281,12 @@ classdef MapManager < handle
 					line([pos(1), pathConverted(end, 1)], [pos(2), pathConverted(end, 2)], 'Color', 'black', 'LineWidth', 2);
 					hold on;
 				end
+			end
+
+			% Tables positions
+			if ~isempty(obj.tablesCenterPositions)
+				viscircles(obj.tablesCenterPositions, obj.tablesRadius, 'Color', 'b', 'LineWidth', 2);
+				hold on;
 			end
 
 			% Others

@@ -50,6 +50,14 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	pause(2);
 
 
+	%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Tables information %%
+	%%%%%%%%%%%%%%%%%%%%%%%%
+	
+	% Find center positions of the different tables
+	map.findTablesCenterPositions();
+
+
 	%%%%%%%%%%%%%%%
 	%% Main loop %%
 	%%%%%%%%%%%%%%%

@@ -16,6 +16,9 @@ function main()
 	mapHeight = 15;
 	mapPrec = 5;
 
+	% Tables radius
+	tablesRadius = 3;
+
 	% SLAM (for navigation)
 	slam = false;
 
@@ -23,7 +26,7 @@ function main()
 	timestep = .05;
 
 	% Map and robot instance
-	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec, tablesRadius);
 	robot = classes.RobotController();
 
 
