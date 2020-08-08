@@ -248,6 +248,24 @@ classdef RobotController < handle
 			end
 		end
 
+		function distObjRot = setVelocitiesToRotate(obj, position, orientation, objective)
+			% Set velocities so that the robot only do a rotation to
+			% align itself with an objective.
+
+			% We get angle between robot position and objective position
+			a = [0, -1];
+			b = [objective(1) - position(1), objective(2) - position(2)];
+			
+			rotAngl = sign(objective(1) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
+			
+			% We set velocities
+			obj.forwBackVel = 0;
+			obj.rotVel = obj.rotVelFact * angdiff(rotAngl, orientation(3)) / 2;
+
+			% Get the distance to objective
+			distObjRot = abs(angdiff(rotAngl, orientation(3)));
+		end
+
 		function stop(obj, pos)
 			% Stop the robot and save its position. This function is
 			% useful at the end of the navigation to stop the robot
@@ -269,6 +287,19 @@ classdef RobotController < handle
 			% to apply SLAM techniques with such displacements.
 
 			h = youbot_drive(vrep, h, obj.forwBackVel, 0, obj.rotVel);
+		end
+
+		function [img, resolution] = takePhoto(~, vrep, id, h)
+			% Take a (front) picture with the robot and return
+			% the image.
+			
+			% Setup the sensor for capturing an image
+			res = vrep.simxSetIntegerSignal(id, 'handle_rgb_sensor', 1, vrep.simx_opmode_oneshot_wait);
+			vrchk(vrep, res);
+
+			% Capturing the image
+			[res, resolution, img] = vrep.simxGetVisionSensorImage2(id, h.rgbSensor, 0, vrep.simx_opmode_oneshot_wait);
+			vrchk(vrep, res);
 		end
 	end
 end

@@ -26,11 +26,6 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 	% (free position)
 	map.setNeighborhood(absPos, 2, 1 / map.mapPrec, 0);
 
-	% Initialize the mesh grid (for the data retrieving
-	% of the Hokuyo)
-	meshSize = 1 / map.mapPrec;
-	robot.setMeshGrid(meshSize);
-
 	% Initialize the path and the objective of the robot
 	pathList = [];
 	objective = [];

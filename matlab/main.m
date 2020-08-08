@@ -26,6 +26,11 @@ function main()
 	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
 	robot = classes.RobotController();
 
+	% Initialize the mesh grid (for the data retrieving
+	% of the Hokuyo)
+	meshSize = 1 / mapPrec;
+	robot.setMeshGrid(meshSize);
+
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Simulator initialisation %%

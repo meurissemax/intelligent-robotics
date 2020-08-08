@@ -28,7 +28,7 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	
 	% Stop the robot (just to be sure)
 	robot.stop(absPos);
-	robot.drive(vrep, h);
+	h = robot.drive(vrep, h);
 
 	% Initialize action type and state of the finite state machine
 	action = 'move';
@@ -39,6 +39,10 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	pathList = [];
 	objective = [];
 	hasAccCurrentObj = true;
+
+	% Initialize variable for tables analyzing
+	hasAccAnalyze = true;
+	rotThresh = 0.01;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -103,14 +107,17 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 		% For this milestone, we have to define some actions "(state) - action"
 		% in a particular order :
 		%
-		% 	1. Explore each table to determine their type ('explore') - 'move'
-		% 	2. Go the table with objects ('objects') - 'move'
-		% 	3. Grasp an object ('grasp') - 'arm'
-		% 	4. Go the objective table ('objective') - 'move'
-		% 	5. Drop grasped object ('drop') - 'arm'
+		% 	1. Go to a table in order to analyze it ('explore') - 'move'
+		% 	2. Analyze the current table do determine its type ('analyze') - 'static'
 		%
-		% Robot has to repeat operations 2 to 5 until milestone
-		% is finished.
+		% Robot has to repeat operations 1 to 2 until all tables have been analyzed.
+		%
+		% 	3. Go the table with objects ('objects') - 'move'
+		% 	4. Grasp an object ('grasp') - 'static'
+		% 	5. Go the objective table ('objective') - 'move'
+		% 	6. Drop grasped object ('drop') - 'static'
+		%
+		% Robot has to repeat operations 3 to 6 until milestone is finished.
 
 		%%%%%%%%%%%%%%%%%
 		% 'move' action %
@@ -129,6 +136,19 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 				% to explore
 
 				if isempty(pathList)
+
+					% If the path is empty (and init movement has
+					% been done), the robot is near a table so
+					% analyze it.
+
+					if hasAccAnalyze
+						hasAccAnalyze = false;
+					else
+						action = 'static';
+						state = 'analyze';
+
+						continue;
+					end
 
 					% If there is no more table, all tables have
 					% been explore, we can move to next state,
@@ -213,17 +233,57 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 			% We drive the robot
 			h = robot.drive(vrep, h);
 
-		%%%%%%%%%%%%%%%%
-		% 'arm' action %
-		%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%
+		% 'static' action %
+		%%%%%%%%%%%%%%%%%%%
 
-		elseif strcmp(action, 'arm')
+		elseif strcmp(action, 'static')
+
+			%%%%%%%%%%%%%%%%%%%
+			% 'analyze' state %
+			%%%%%%%%%%%%%%%%%%%
+
+			if strcmp(state, 'analyze')
+				% The goal is to take a photo of the table and
+				% to analyze it. So we have to adjust the robot
+				% and take a photo, and then analyze it.
+
+				% Rotate the robot to align it with the table
+				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(2), nextTable(1), size(map.getOccupancyMatrix(), 1));
+				rotObj = rotObj ./ map.mapPrec;
+				
+				distObjRot = robot.setVelocitiesToRotate(absPos, orientation, rotObj);
+				h = robot.drive(vrep, h);
+
+				% If the distance is smaller than a threshold,
+				% stop and take a photo
+				if distObjRot < rotThresh
+
+					% Stop the robot
+					robot.stop(absPos);
+					h = robot.drive(vrep, h);
+
+					% Take a photo
+					pause(2);
+					
+					[img, ~] = robot.takePhoto(vrep, id, h);
+					imwrite(img, 'picture.png');
+
+					% Go back to 'explore' state to continue
+					% tables exploration
+					hasAccAnalyze = true;
+
+					action = 'move';
+					state = 'explore';
+
+					continue;
+				end
 
 			%%%%%%%%%%%%%%%%%
 			% 'grasp' state %
 			%%%%%%%%%%%%%%%%%
 
-			if strcmp(state, 'grasp')
+			elseif strcmp(state, 'grasp')
 				% TO DO
 
 			%%%%%%%%%%%%%%%%
