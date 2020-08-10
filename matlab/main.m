@@ -19,6 +19,9 @@ function main()
 	% SLAM (for navigation)
 	slam = false;
 
+	% Table difficulty (for manipulation, 'easy' or 'hard')
+	difficulty = 'easy';
+
 	% Timestep of the simulator
 	timestep = .05;
 
@@ -77,7 +80,7 @@ function main()
 	%%%%%%%%%%%%%%%%
 	
 	navigation(vrep, id, h, timestep, map, robot, slam, scenePath);
-	manipulation(vrep, id, h, timestep, map, robot);
+	manipulation(vrep, id, h, timestep, map, robot, difficulty);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%

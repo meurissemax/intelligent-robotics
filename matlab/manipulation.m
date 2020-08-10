@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function manipulation(vrep, id, h, timestep, map, robot, varargin)
+function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
@@ -15,15 +15,22 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	% from a .mat file and the position of the robot is
 	% initialized.
 
+	% Stop the robot (just to be sure)
+	robot.setVelocitiesToStop();
+	h = robot.drive(vrep, h);
+
+	% Get the table difficulty
+	if strcmp(difficulty, 'hard')
+		tableDifficulty = 3;
+	else
+		tableDifficulty = 2;
+	end
+
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 6
 		map.load(varargin{1});
 		robot.setInitPos(robot.getRelativePositionFromGPS(vrep, id, h) - [map.mapWidth, map.mapHeight]);
 	end
-	
-	% Stop the robot (just to be sure)
-	robot.setVelocitiesToStop();
-	h = robot.drive(vrep, h);
 
 	% Initialize action type and state of the finite state machine
 	action = 'move';
@@ -37,6 +44,10 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 
 	% Initialize variable for tables analyzing
 	hasAccAnalyze = true;
+
+	% Initialize variables for tables navigation
+	nearObjects = false;
+	nearObjective = false;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -183,14 +194,84 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 			%%%%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'objects')
-				% TO DO
+
+				% If the path list is empty, either the robot is near
+				% the object table, and it is OK or the robot has to
+				% go the this object table and so we determine a path
+
+				if isempty(pathList)
+
+					% We check if the robot is already near the object
+					% table
+					
+					if nearObjects
+						% Set the flag
+						nearObjective = false;
+
+						% Update the state of the robot
+						action = 'static';
+						state = 'grasp';
+
+						continue;
+					else
+						% Set the flag
+						nearObjects = true;
+
+						% Get table position
+						tableID = find(map.tablesType == tableDifficulty);
+						tablePos = map.tablesCenterPositions(tableID, :);
+						tableRadius = map.tablesRadius(tableID);
+
+						% Setup point to determine path
+						occMatPos = round(absPos .* map.mapPrec);
+						nextPoint = tablePos + tableRadius;
+
+						% We get path to the table
+						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
+					end
+				end
 
 			%%%%%%%%%%%%%%%%%%%%%
 			% 'objective' state %
 			%%%%%%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'objective')
-				% TO DO
+
+				% If the path list is empty, either the robot is near
+				% the objective table, and it is OK or the robot has to
+				% go the this objective table and so we determine a path
+
+				if isempty(pathList)
+
+					% We check if the robot is already near the objective
+					% table
+					
+					if nearObjective
+						% Set the flag
+						nearObjects = false;
+
+						% Update the state of the robot
+						action = 'static';
+						state = 'drop';
+
+						continue;
+					else
+						% Set the flag
+						nearObjective = true;
+
+						% Get table position
+						tableID = find(map.tablesType == 1);
+						tablePos = map.tablesCenterPositions(tableID, :);
+						tableRadius = map.tablesRadius(tableID);
+
+						% Setup point to determine path
+						occMatPos = round(absPos .* map.mapPrec);
+						nextPoint = tablePos + tableRadius;
+
+						% We get path to the table
+						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
+					end
+				end
 
 			%%%%%%%%%%%%%%%%%
 			% Unknown state %
@@ -285,14 +366,24 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 			%%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'grasp')
-				% TO DO
+				disp('GRASP');
+
+				action = 'move';
+				state = 'objective';
+
+				continue;
 
 			%%%%%%%%%%%%%%%%
 			% 'drop' state %
 			%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'drop')
-				% TO DO
+				disp('DROP');
+
+				action = 'move';
+				state = 'objects';
+
+				continue;
 
 			%%%%%%%%%%%%%%%%%
 			% Unknown state %
