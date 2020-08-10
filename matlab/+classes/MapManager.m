@@ -19,6 +19,12 @@ classdef MapManager < handle
 		% Tables information
 		tablesCenterPositions
 		tablesRadius
+
+		% Types :
+		%	- 0 : undefined
+		%	- 1 : empty
+		%	- 2 : easy
+		%	- 3 : hard
 		tablesType
 
 		% Representation of the map
@@ -238,7 +244,7 @@ classdef MapManager < handle
 			% Set centers positions and radii
 			obj.tablesCenterPositions = round(centers ./ resizeFactor);
 			obj.tablesRadius = round(radii ./ resizeFactor);
-			obj.tablesType(1, 1:numel(radii)) = "undefined";
+			obj.tablesType(1, 1:numel(radii)) = 0;
 		end
 
 		function show(obj, varargin)
@@ -321,17 +327,17 @@ classdef MapManager < handle
 
 					tableType = obj.tablesType(i);
 
-					if strcmp(tableType, 'empty')
-						circleColor = 'Blue';
-					elseif strcmp(tableType, 'easy')
-						circleColor = 'DarkGreen';
-					elseif strcmp(tableType, 'hard')
-						circleColor = 'DarkMagenta';
+					if tableType == 1
+						circleColor = '#3498db';
+					elseif tableType == 2
+						circleColor = '#27ae60';
+					elseif tableType == 3
+						circleColor = '#e74c3c';
 					else
-						circleColor = 'Black';
+						circleColor = 'black';
 					end
 					
-					viscircles([x, y], obj.tablesRadius(i), 'Color', circleColor, 'LineWidth', 2);
+					viscircles([x, y], obj.tablesRadius(i), 'Color', circleColor, 'LineWidth', 3);
 					hold on;
 				end
 			end

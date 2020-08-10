@@ -240,7 +240,7 @@ classdef RobotController < handle
 			end
 		end
 
-		function setVelocitiesToRotate(obj, position, orientation, objective)
+		function rotAngl = setVelocitiesToRotate(obj, position, orientation, objective)
 			% Set velocities so that the robot only do a rotation to
 			% align itself with an objective.
 
@@ -309,11 +309,11 @@ classdef RobotController < handle
 			
 			% Decide type of the table based on proportions
 			if p_red > 0.01
-				tableType = 'easy';
+				tableType = 2;
 			elseif p_purple > 0.002
-				tableType = 'hard';
+				tableType = 3;
 			else
-				tableType = 'empty';
+				tableType = 1;
 			end
 		end
 	end

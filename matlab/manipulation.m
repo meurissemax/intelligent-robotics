@@ -65,9 +65,14 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	% Find center positions and radius of the tables
 	map.findTables();
 
-	% Get information for the 'explore' state
-	tablesPositions = map.tablesCenterPositions;
-	tablesRadius = map.tablesRadius;
+	% Initialize current table for analysis
+	if isempty(map.tablesRadius)
+		fprintf('No table found, simulation stops here.\n');
+
+		return;
+	else
+		currentTable = 0;
+	end
 
 
 	%%%%%%%%%%%%%%%
@@ -148,7 +153,9 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 					% been explore, we can move to next state,
 					% else we have to define path to next table
 
-					if isempty(tablesPositions)
+					currentTable = currentTable + 1;
+
+					if currentTable > numel(map.tablesRadius)
 						action = 'move';
 						state = 'objects';
 
@@ -158,12 +165,9 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 						robot.setVelocitiesToStop();
 						h = robot.drive(vrep, h);
 
-						% We pop the next table information
-						nextTable = tablesPositions(end, :);
-						nextRadius = tablesRadius(end);
-
-						tablesPositions(end, :) = [];
-						tablesRadius(end) = [];
+						% We get the next table information
+						nextTable = map.tablesCenterPositions(currentTable, :);
+						nextRadius = map.tablesRadius(currentTable);
 
 						% Setup point to determine path
 						occMatPos = round(absPos .* map.mapPrec);
@@ -243,15 +247,15 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 				% and take a photo, and then analyze it.
 
 				% Rotate the robot to align it with the table
-				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(2), nextTable(1), size(map.getOccupancyMatrix(), 1));
+				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(1), nextTable(2), size(map.getOccupancyMatrix(), 1));
 				rotObj = rotObj ./ map.mapPrec;
 				
-				robot.setVelocitiesToRotate(absPos, orientation, rotObj);
+				rotAngl = robot.setVelocitiesToRotate(absPos, orientation, rotObj);
 				h = robot.drive(vrep, h);
 
 				% If the distance is smaller than a threshold,
 				% stop and take a photo
-				if robot.checkObjective(absPos, orientation, rotObj, true)
+				if robot.checkObjective(absPos, orientation, rotAngl, true)
 
 					% Stop the robot
 					robot.setVelocitiesToStop();
@@ -261,8 +265,10 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 					pause(2);
 					
 					img = robot.takePhoto(vrep, id, h);
+
+					% Determine table type and update the data
 					tableType = robot.getTableTypeFromImage(img);
-					disp(tableType);
+					map.tablesType(1, currentTable) = tableType;
 
 					% Go back to 'explore' state to continue
 					% tables exploration
