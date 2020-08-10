@@ -3,12 +3,10 @@
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
 classdef MapManager < handle
-	% This class is used to manage the map (its representation, updating
-	% its values, export and show).
 
-	%%%%%%%%%%%%%%
-	% Attributes %
-	%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%
+	%% Attributes %%
+	%%%%%%%%%%%%%%%%
 
 	properties (Access = public)
 		% Dimensions of the map
@@ -19,8 +17,9 @@ classdef MapManager < handle
 		mapPrec
 
 		% Tables information
-		tablesRadius
 		tablesCenterPositions
+		tablesRadius
+		tablesType
 
 		% Representation of the map
 		map
@@ -39,12 +38,11 @@ classdef MapManager < handle
 	end
 
 
-	%%%%%%%%%%%
-	% Methods %
-	%%%%%%%%%%%
+	%%%%%%%%%%%%%
+	%% Methods %%
+	%%%%%%%%%%%%%
 
 	methods (Access = public)
-
 		function obj = MapManager(mapWidth, mapHeight, mapPrec)
 			% Constructor of the class. It sets the dimensions and the
 			% precision of the map and instantiate the occupancy map.
@@ -233,9 +231,14 @@ classdef MapManager < handle
 			radiusRange = [guessRadius * resizeFactor, guessRadius * resizeFactor * 3];
 			[centers, radii] = imfindcircles(occMatInf, radiusRange);
 
+			% Update coordinate system of center points (to be the
+			% same as the project)
+			centers = [centers(:, 2), centers(:, 1)];
+
 			% Set centers positions and radii
 			obj.tablesCenterPositions = round(centers ./ resizeFactor);
 			obj.tablesRadius = round(radii ./ resizeFactor);
+			obj.tablesType(1, 1:numel(radii)) = "undefined";
 		end
 
 		function show(obj, varargin)
@@ -310,18 +313,33 @@ classdef MapManager < handle
 
 			% Tables positions
 			if ~isempty(obj.tablesCenterPositions)
-				i_centers = obj.tablesCenterPositions(:, 2);
-				j_centers = obj.tablesCenterPositions(:, 1);
-				[x, y] = utils.toCartesian(i_centers, j_centers, size(occMat, 2));
-				
-				viscircles([x, y], obj.tablesRadius, 'Color', 'b', 'LineWidth', 2);
-				hold on;
+				for i = 1:numel(obj.tablesRadius)
+					i_center = obj.tablesCenterPositions(i, 1);
+					j_center = obj.tablesCenterPositions(i, 2);
+					
+					[x, y] = utils.toCartesian(i_center, j_center, size(occMat, 2));
+
+					tableType = obj.tablesType(i);
+
+					if strcmp(tableType, 'empty')
+						circleColor = 'Blue';
+					elseif strcmp(tableType, 'easy')
+						circleColor = 'DarkGreen';
+					elseif strcmp(tableType, 'hard')
+						circleColor = 'DarkMagenta';
+					else
+						circleColor = 'Black';
+					end
+					
+					viscircles([x, y], obj.tablesRadius(i), 'Color', circleColor, 'LineWidth', 2);
+					hold on;
+				end
 			end
 
 			% Others
 			hold off;
 
-			title('Explored map');
+			title('Map representation');
 
 			drawnow;
 		end

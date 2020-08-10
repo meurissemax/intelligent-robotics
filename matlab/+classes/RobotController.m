@@ -3,12 +3,10 @@
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
 classdef RobotController < handle
-	% This class is used to manage the robot, its sensors
-	% and its movements.
 
-	%%%%%%%%%%%%%%
-	% Attributes %
-	%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%
+	%% Attributes %%
+	%%%%%%%%%%%%%%%%
 
 	properties (Access = public)
 		% Position of the robot (useful at the end
@@ -35,6 +33,7 @@ classdef RobotController < handle
 
 		% Movements tolerances
 		movPrecision = 0.3;
+		rotPrecision = 0.01;
 
 		% Parameters when the robot is stuck
 		stuckTresh = 0.6;
@@ -42,12 +41,11 @@ classdef RobotController < handle
 	end
 
 
-	%%%%%%%%%%%
-	% Methods %
-	%%%%%%%%%%%
+	%%%%%%%%%%%%%
+	%% Methods %%
+	%%%%%%%%%%%%%
 
 	methods (Access = public)
-
 		function setInitPos(obj, initPos)
 			% Set the initial position of the robot. This initial position
 			% is set once and does not change in the future.
@@ -184,43 +182,37 @@ classdef RobotController < handle
 			end
 		end
 		
-		function hasAccCurrentObj = checkObjective(obj, position, objective)
+		function hasAccCurrentObj = checkObjective(obj, position, orientation, objective, rotation)
 			% Check if the robot has accomplished its current objective
 			% 'objective'. It is a simple comparison between the two
 			% positions 'position' (position of the robot) and 'objective'
 			% (objective of the robot).
 			%
-			% The rotation is not taken into account because it is not
-			% really important for the pure navigation (it will be for
-			% the manipulation).
-
-			% By default, robot has not accomplished its objective
-			hasAccCurrentObj = false;
+			% 'rotation' is a boolean flag that indicates if the movement
+			% is a rotation or not. In this case, it is a comparison between
+			% the objective angle and the current orientation.
 			
-			% Calculate distance to objective
-			distObj = [abs(position(1) - objective(1)), abs(position(2) - objective(2))];
-			
-			% We check if robot has accomplished its objective
-			if sum(distObj < obj.movPrecision) == numel(distObj)
-				obj.forwBackVel = 0;
-				obj.rotVel = 0;
-
-				hasAccCurrentObj = true;
+			% Calculate distance to objective and check if
+			% it is accomplished
+			if rotation
+				distObj = abs(angdiff(objective, orientation(3)));
+				hasAccCurrentObj = distObj < obj.rotPrecision;
+			else
+				distObj = [abs(position(1) - objective(1)), abs(position(2) - objective(2))];
+				hasAccCurrentObj = sum(distObj < obj.movPrecision) == numel(distObj);
 			end
 		end
 		
-		function setVelocitiesToObjective(obj, position, orientation, objective, backward)
+		function setVelocitiesToMove(obj, position, orientation, objective, backward)
 			% Set the velocities of the robot according to its position
 			% 'position' and its orientation 'orientation' so that the
 			% robot can reach the objective 'objective'.
+			%
 			% The 'backward' parameter is a boolean that indicates if
 			% the robot has to go forward (false) or backward (true).
 
 			% We get angle between robot position and objective position
-			a = [0, -1];
-			b = [objective(1) - position(1), objective(2) - position(2)];
-			
-			rotAngl = sign(objective(1) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
+			rotAngl = obj.getAngleBetween(position, objective);
 
 			% We get distance to objective, for position and rotation
 			distObjPos = [abs(position(1) - objective(1)), abs(position(2) - objective(2))];
@@ -248,40 +240,29 @@ classdef RobotController < handle
 			end
 		end
 
-		function distObjRot = setVelocitiesToRotate(obj, position, orientation, objective)
+		function setVelocitiesToRotate(obj, position, orientation, objective)
 			% Set velocities so that the robot only do a rotation to
 			% align itself with an objective.
 
 			% We get angle between robot position and objective position
-			a = [0, -1];
-			b = [objective(1) - position(1), objective(2) - position(2)];
-			
-			rotAngl = sign(objective(1) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
+			rotAngl = obj.getAngleBetween(position, objective);
 			
 			% We set velocities
 			obj.forwBackVel = 0;
 			obj.rotVel = obj.rotVelFact * angdiff(rotAngl, orientation(3)) / 2;
-
-			% Get the distance to objective
-			distObjRot = abs(angdiff(rotAngl, orientation(3)));
 		end
 
-		function stop(obj, pos)
-			% Stop the robot and save its position. This function is
-			% useful at the end of the navigation to stop the robot
-			% during the exportation of the map and to save its
-			% position for the next phase (manipulation).
+		function setVelocitiesToStop(obj)
+			% Set the velocities to stop the robot.
 
 			% Set all velocities to 0
 			obj.forwBackVel = 0;
 			obj.rotVel = 0;
-
-			% Save stop position of the robot
-			obj.stopPos = pos;
 		end
 		
 		function h = drive(obj, vrep, h)
 			% Use the defined velocities of the robot to move it.
+			%
 			% Remark : left-right velocity has been set to 0 because
 			% we decided to not use it since it is very difficult
 			% to apply SLAM techniques with such displacements.
@@ -289,7 +270,7 @@ classdef RobotController < handle
 			h = youbot_drive(vrep, h, obj.forwBackVel, 0, obj.rotVel);
 		end
 
-		function [img, resolution] = takePhoto(~, vrep, id, h)
+		function img = takePhoto(~, vrep, id, h)
 			% Take a (front) picture with the robot and return
 			% the image.
 			
@@ -298,8 +279,53 @@ classdef RobotController < handle
 			vrchk(vrep, res);
 
 			% Capturing the image
-			[res, resolution, img] = vrep.simxGetVisionSensorImage2(id, h.rgbSensor, 0, vrep.simx_opmode_oneshot_wait);
+			[res, ~, img] = vrep.simxGetVisionSensorImage2(id, h.rgbSensor, 0, vrep.simx_opmode_oneshot_wait);
 			vrchk(vrep, res);
+		end
+		
+		function tableType = getTableTypeFromImage(~, img)
+			% Analyze the input image (an image of a table) to
+			% determine its type ('empty', 'easy' or 'hard').
+			% This technique is based on the colors of the
+			% elements of the table.
+			
+			% Get colors channel
+			r = img(:, :, 1);
+			g = img(:, :, 2);
+			b = img(:, :, 3);
+			
+			% Find specific colors
+			red_pattern = r > 220 & r < 260 & g > 55 & g < 75 & b > 55 & b < 75;
+			purple_pattern = r > 210 & r < 240 & g > 20 & g < 40 & b > 214 & b < 240;
+			
+			[x_red, ~] = find(red_pattern);
+			[x_purple, ~] = find(purple_pattern);
+			
+			% Calculate proportions of specific colors
+			imsize = numel(r);
+			
+			p_red = numel(x_red) / imsize;
+			p_purple = numel(x_purple) / imsize;
+			
+			% Decide type of the table based on proportions
+			if p_red > 0.01
+				tableType = 'easy';
+			elseif p_purple > 0.002
+				tableType = 'hard';
+			else
+				tableType = 'empty';
+			end
+		end
+	end
+
+	methods (Access = private)
+		function rotAngl = getAngleBetween(~, position, objective)
+			% Get angle between robot position and objective position.
+			
+			a = [0, -1];
+			b = [objective(1) - position(1), objective(2) - position(2)];
+			
+			rotAngl = sign(objective(1) - position(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 		end
 	end
 end

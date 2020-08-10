@@ -127,13 +127,16 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 				% If no, we define a new path.
 
 				% We stop the robot during the calculation
-				robot.stop(absPos);
+				robot.setVelocitiesToStop();
 				h = robot.drive(vrep, h);
 
 				if map.isExplored()
 
 					% Export the map
 					map.export(scenePath);
+
+					% Save the position of the robot
+					robot.stopPos = absPos;
 					
 					% Stop the simulation
 					pause(2);
@@ -153,6 +156,9 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 
 						% Export the map
 						map.export(scenePath);
+
+						% Save the position of the robot
+						robot.stopPos = absPos;
 						
 						% Stop the simulation
 						pause(2);
@@ -178,11 +184,11 @@ function navigation(vrep, id, h, timestep, map, robot, slam, scenePath)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		% We check if robot has accomplished its current objective
-		hasAccCurrentObj = robot.checkObjective(absPos, objective);
+		hasAccCurrentObj = robot.checkObjective(absPos, orientation, objective, false);
 
 		% If robot has not accomplished its objective, we set the velocities
 		if ~hasAccCurrentObj
-			robot.setVelocitiesToObjective(absPos, orientation, objective, stuck);
+			robot.setVelocitiesToMove(absPos, orientation, objective, stuck);
 		end
 
 		% We drive the robot

@@ -15,19 +15,14 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 	% from a .mat file and the position of the robot is
 	% initialized.
 
-	% Get the representation of the map and position of
-	% the robot
+	% Load the map and set initial position of the robot, if needed
 	if nargin > 6
 		map.load(varargin{1});
-
 		robot.setInitPos(robot.getRelativePositionFromGPS(vrep, id, h) - [map.mapWidth, map.mapHeight]);
-		absPos = robot.getAbsolutePositionFromGPS(vrep, id, h);
-	else
-		absPos = robot.stopPos;
 	end
 	
 	% Stop the robot (just to be sure)
-	robot.stop(absPos);
+	robot.setVelocitiesToStop();
 	h = robot.drive(vrep, h);
 
 	% Initialize action type and state of the finite state machine
@@ -42,7 +37,6 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 
 	% Initialize variable for tables analyzing
 	hasAccAnalyze = true;
-	rotThresh = 0.01;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -161,7 +155,7 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 						continue;
 					else
 						% We stop the robot during the calculation
-						robot.stop(absPos);
+						robot.setVelocitiesToStop();
 						h = robot.drive(vrep, h);
 
 						% We pop the next table information
@@ -173,7 +167,7 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 
 						% Setup point to determine path
 						occMatPos = round(absPos .* map.mapPrec);
-						nextPoint = [nextTable(2), nextTable(1)] + nextRadius;
+						nextPoint = nextTable + nextRadius;
 
 						% We get path to the next table
 						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
@@ -223,11 +217,11 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 			%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 			
 			% We check if robot has accomplished its current objective
-			hasAccCurrentObj = robot.checkObjective(absPos, objective);
+			hasAccCurrentObj = robot.checkObjective(absPos, orientation, objective, false);
 			
 			% If robot has not accomplished its objective, we set the velocities
 			if ~hasAccCurrentObj
-				robot.setVelocitiesToObjective(absPos, orientation, objective, false);
+				robot.setVelocitiesToMove(absPos, orientation, objective, false);
 			end
 			
 			% We drive the robot
@@ -252,22 +246,23 @@ function manipulation(vrep, id, h, timestep, map, robot, varargin)
 				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(2), nextTable(1), size(map.getOccupancyMatrix(), 1));
 				rotObj = rotObj ./ map.mapPrec;
 				
-				distObjRot = robot.setVelocitiesToRotate(absPos, orientation, rotObj);
+				robot.setVelocitiesToRotate(absPos, orientation, rotObj);
 				h = robot.drive(vrep, h);
 
 				% If the distance is smaller than a threshold,
 				% stop and take a photo
-				if distObjRot < rotThresh
+				if robot.checkObjective(absPos, orientation, rotObj, true)
 
 					% Stop the robot
-					robot.stop(absPos);
+					robot.setVelocitiesToStop();
 					h = robot.drive(vrep, h);
 
 					% Take a photo
 					pause(2);
 					
-					[img, ~] = robot.takePhoto(vrep, id, h);
-					imwrite(img, 'picture.png');
+					img = robot.takePhoto(vrep, id, h);
+					tableType = robot.getTableTypeFromImage(img);
+					disp(tableType);
 
 					% Go back to 'explore' state to continue
 					% tables exploration
