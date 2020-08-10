@@ -316,6 +316,43 @@ classdef RobotController < handle
 				tableType = 1;
 			end
 		end
+
+		function graspObject(~, vrep, id, h)
+			% Grasp an object.
+			
+			% Set the inverse kinematics (IK) mode to position and orientation (km_mode = 2)
+			res = vrep.simxSetIntegerSignal(id, 'km_mode', 2, vrep.simx_opmode_oneshot_wait);
+			vrchk(vrep, res, true);
+            
+			% Set the new position to the expected one for the gripper (predetermined value)
+			tpos = [0.3259, -0.0010, 0.2951];
+			
+			res = vrep.simxSetObjectPosition(id, h.ptarget, h.armRef, tpos, vrep.simx_opmode_oneshot);
+			vrchk(vrep, res, true);
+			
+			% Wait long enough so that the tip is at the right position
+			pause(5);
+			
+			% Remove the inverse kinematics (IK) mode so that joint angles can be set individually
+			res = vrep.simxSetIntegerSignal(id, 'km_mode', 0, vrep.simx_opmode_oneshot_wait);
+			vrchk(vrep, res, true);
+            
+			% Set the new gripper angle
+			tangle = 0;
+
+			res = vrep.simxSetJointTargetPosition(id, h.armJoints(5), tangle, vrep.simx_opmode_oneshot);
+			vrchk(vrep, res, true);
+			
+			% Wait long enough so that the tip is at the right position
+			pause(5);
+
+			% Open the gripper
+			res = vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot_wait);
+			vrchk(vrep, res);
+			
+			% Make MATLAB wait for the gripper to be closed
+			pause(3);
+		end
 	end
 
 	methods (Access = private)

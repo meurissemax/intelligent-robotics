@@ -366,8 +366,14 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'grasp')
-				disp('GRASP');
+				% Stop the robot
+				robot.setVelocitiesToStop();
+				h = robot.drive(vrep, h);
+				
+				% Grasp an object
+				robot.graspObject(vrep, id, h);
 
+				% Update state of the robot
 				action = 'move';
 				state = 'objective';
 
@@ -378,8 +384,14 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'drop')
+				% Stop the robot
+				robot.setVelocitiesToStop();
+				h = robot.drive(vrep, h);
+
+				% Drop the grasped object
 				disp('DROP');
 
+				% Update state of the robot
 				action = 'move';
 				state = 'objects';
 
