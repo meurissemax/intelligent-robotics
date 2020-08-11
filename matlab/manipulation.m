@@ -27,7 +27,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 	end
 
 	% Load the map and set initial position of the robot, if needed
-	if nargin > 6
+	if nargin > 7
 		map.load(varargin{1});
 		robot.setInitPos(robot.getRelativePositionFromGPS(vrep, id, h) - [map.mapWidth, map.mapHeight]);
 	end
