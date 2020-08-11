@@ -10,9 +10,9 @@ This project has been realized by :
 as part of the *Introduction to intelligent robotics* course given by Professor **Sacré** to the master students of Civil Engineering at the [University of Liège](https://www.uliege.be/) during the academic year 2019-2020 and uses the following resources to run :
 
 * [MATLAB R2020a](https://www.mathworks.com/products/matlab.html) with : 
-  * [Robotics System](https://www.mathworks.com/products/robotics.html) toolbox
-  * [Navigation](https://www.mathworks.com/products/navigation.html) toolbox
-  * [Image Processing](https://www.mathworks.com/products/image.html) toolbox
+	* [Robotics System](https://www.mathworks.com/products/robotics.html) toolbox
+	* [Navigation](https://www.mathworks.com/products/navigation.html) toolbox
+	* [Image Processing](https://www.mathworks.com/products/image.html) toolbox
 * [TRS](http://ulgrobotics.github.io/trs/) : an open-source recipe for teaching/learning robotics with a simulator
 * [VREP PRO EDU (version 3.6.2)](https://www.coppeliarobotics.com/previousVersions)
 
@@ -33,5 +33,5 @@ When all resources are installed :
 1. Put the `trs/` folder (with appropriate modifications, available [here](http://ulgrobotics.github.io/trs/setup.html#install)) in the `matlab/` folder;
 2. Launch MATLAB and run the `startup.m` script (by default, MATLAB should run it automatically);
 3. Lauch VREP;
-4. Update the "Values initialization" part of the `main.m` file (choose the scene, the map dimensions, etc);
+4. Update the "Values initialization" part of the `main.m` file (define the map dimensions, etc);
 5. Run the `main.m` script.

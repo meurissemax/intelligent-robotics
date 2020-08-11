@@ -16,6 +16,13 @@ classdef MapManager < handle
 		% Precision of the map
 		mapPrec
 
+		% Representation of the map (occupancy map)
+		map
+
+		% Dimensions of the matrix representation (occupancy matrix)
+		matrixWidth
+		matrixHeight
+
 		% Tables information
 		tablesCenterPositions
 		tablesRadius
@@ -26,9 +33,6 @@ classdef MapManager < handle
 		%	- 2 : easy
 		%	- 3 : hard
 		tablesType
-
-		% Representation of the map
-		map
 	end
 
 	properties (Access = private)
@@ -52,12 +56,16 @@ classdef MapManager < handle
 		function obj = MapManager(mapWidth, mapHeight, mapPrec)
 			% Constructor of the class. It sets the dimensions and the
 			% precision of the map and instantiate the occupancy map.
-			
+
 			% Set the dimensions
 			obj.mapWidth = mapWidth;
 			obj.mapHeight = mapHeight;
 			obj.mapPrec = mapPrec;
-			
+
+			% Set the matrix dimensions
+			obj.matrixWidth = mapWidth * 2 * mapPrec;
+			obj.matrixHeight = mapHeight * 2 * mapPrec;
+
 			% Instantiate the occupancy map (with dimensions x2 because
 			% we do not know where the robot starts in the map)
 			obj.map = occupancyMap(mapWidth * 2, mapHeight * 2, mapPrec);
@@ -68,15 +76,16 @@ classdef MapManager < handle
 
 			occMat = occupancyMatrix(obj.map, 'ternary');
 		end
-		
+
 		function setPoints(obj, points, value)
 			% Assign a value 'value' to some points 'points' of the
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
-
+			%
 			% Only assign free position to points that are not walls.
 			% This verification is useful because the Hokuyo is not
-			% always reliable for the point detection
+			% always reliable for the point detection.
+
 			if value == 0
 				occVal = getOccupancy(obj.map, points);
 				points = points(occVal < 0.9, :);
@@ -85,7 +94,7 @@ classdef MapManager < handle
 			setOccupancy(obj.map, points, value);
 		end
 
-		function setNeighborhood(obj, point, radius, dx, value)
+		function setNeighborhood(obj, point, radius, value)
 			% Assign a value 'value' to a point 'point' and his
 			% neighborhood (of radius 'radius' in the occupancy map) in
 			% the occupancy map.
@@ -98,6 +107,8 @@ classdef MapManager < handle
 			yLimits = obj.map.YWorldLimits;
 
 			% Set the neighborhood of the point
+			dx = 1 / obj.mapPrec;
+
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
 					if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= point(1) || y ~= point(2))
@@ -106,7 +117,7 @@ classdef MapManager < handle
 				end
 			end
 		end
-		
+
 		function nextPath = getNextPathToExplore(obj, pos, from, varargin)
 			% Get the path to the next point to explore in the map. The
 			% path is calculated from the point [x y] 'from' and requires
@@ -123,7 +134,7 @@ classdef MapManager < handle
 			mapInflated = copy(obj.map);
 			inflate(mapInflated, obj.inflatedFact);
 			occMatInf = occupancyMatrix(mapInflated, 'ternary');
-			
+
 			% Get next point to explore
 			if nargin > 3
 				nextPoint = varargin{1};
@@ -134,22 +145,20 @@ classdef MapManager < handle
 				if nextPoint == Inf
 					nextPath = Inf;
 
-					fprintf('No new point to explore available. Mas has probably been explored.\n');
-					
 					return;
 				end
 			end
-			
+
 			% Get the path to this point
 			startPoint = [size(occMat, 1) - pos(2) + 1, pos(1)];
 			stopPoint = [nextPoint(1), nextPoint(2)];
-			
+
 			goalPoint = zeros(size(occMat));
 			goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
 			% Set stop point to 0 (to be sure that A* can reach it)
 			occMatInf(stopPoint(1), stopPoint(2)) = 0;
-			
+
 			% Set neighborhood of start point to 0 (to be sure that A* can begin)
 			for x = startPoint(1) - 1:1:startPoint(1) + 1
 				for y = startPoint(2) - 1:1:startPoint(2) + 1
@@ -164,7 +173,7 @@ classdef MapManager < handle
 
 			% If no path can be found, re try with more flexible map (less inflate)
 			reduceInflate = obj.inflatedFact - 0.1;
-			
+
 			while pathList(1) == Inf
 				mapInflated = copy(obj.map);
 				inflate(mapInflated, reduceInflate);
@@ -174,13 +183,11 @@ classdef MapManager < handle
 
 				reduceInflate = reduceInflate - 0.1;
 
-				% If inflate factor reach 0, not path is possible so return 
+				% If inflate factor reach 0, not path is possible so return
 				% an empty path
 				if reduceInflate <= 0
-					fprintf('Unable to determine a path. Mapping will stop here.\n');
-					
 					nextPath = Inf;
-					
+
 					return;
 				end
 			end
@@ -188,7 +195,7 @@ classdef MapManager < handle
 			% Optimize the path
 			nextPath = obj.optimizePath(pathList);
 		end
-		
+
 		function explored = isExplored(obj)
 			% Check if the map can be consired as explored or not.
 
@@ -210,11 +217,9 @@ classdef MapManager < handle
 			% Evaluate if the map is considered as fully explored
 			if p >= obj.explThresh
 				explored = true;
-
-				fprintf('Map has been fully explored !\n');
 			end
 		end
-		
+
 		function findTables(obj)
 			% Find the center position and radius of each
 			% table of the map.
@@ -275,7 +280,7 @@ classdef MapManager < handle
 			if nargin > 3
 				hokuyo = varargin{3};
 				hokuyo = round(hokuyo .* obj.mapPrec);
-				
+
 				plot(hokuyo(:, 1), hokuyo(:, 2), '.c', 'MarkerSize', 10);
 				hold on;
 			end
@@ -322,7 +327,7 @@ classdef MapManager < handle
 				for i = 1:numel(obj.tablesRadius)
 					i_center = obj.tablesCenterPositions(i, 1);
 					j_center = obj.tablesCenterPositions(i, 2);
-					
+
 					[x, y] = utils.toCartesian(i_center, j_center, size(occMat, 2));
 
 					tableType = obj.tablesType(i);
@@ -336,7 +341,7 @@ classdef MapManager < handle
 					else
 						circleColor = 'black';
 					end
-					
+
 					viscircles([x, y], obj.tablesRadius(i), 'Color', circleColor, 'LineWidth', 3);
 					hold on;
 				end
@@ -350,31 +355,23 @@ classdef MapManager < handle
 			drawnow;
 		end
 
-		function export(obj, scenePath)
+		function export(obj, sceneName)
 			% Export the representation of the map (the 'occupancyMap'
-			% object) in a '<scene name>.mat' file.
+			% object) in a '<sceneName>.mat' file.
 
 			% Get the Matlab variable to export
 			exportMap = obj.map;
 
-			% Get the name of the scene
-			[~, name, ~] = fileparts(scenePath);
-
 			% Save the map
-			save(strcat('mat/', name), 'exportMap');
-
-			fprintf('Map representation has been exported.\n');
+			save(strcat('mat/', sceneName), 'exportMap');
 		end
 
-		function load(obj, scenePath)
+		function load(obj, sceneName)
 			% Load the representation of a map (the 'occupancyMap'
-			% object) from a '<scene name>.mat' file.
-
-			% Get the name of the scene
-			[~, name, ~] = fileparts(scenePath);
+			% object) from a '<sceneName>.mat' file.
 
 			% Load the map
-			load(strcat('mat/', name, '.mat'), 'exportMap');
+			load(strcat('mat/', sceneName, '.mat'), 'exportMap');
 
 			% Save the loaded map
 			obj.map = exportMap;
@@ -386,6 +383,9 @@ classdef MapManager < handle
 
 			obj.mapWidth = exportMap.GridSize(1) / resizeFactor;
 			obj.mapHeight = exportMap.GridSize(2) / resizeFactor;
+
+			obj.matrixWidth = obj.mapWidth * 2 * obj.mapPrec;
+			obj.matrixHeight = obj.mapHeight * 2 * obj.mapPrec;
 		end
 	end
 

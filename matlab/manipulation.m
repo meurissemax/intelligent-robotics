@@ -10,14 +10,16 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 	% To initialize the map, either the information comes
 	% from the navigation phase (map and robot objects),
-	% either an additional argument (scenePath) can be passed
+	% either an additional argument (sceneName) can be passed
 	% to the function. In this latter case, the map is loaded
 	% from a .mat file and the position of the robot is
 	% initialized.
 
 	% Stop the robot (just to be sure)
-	robot.setVelocitiesToStop();
-	h = robot.drive(vrep, h);
+	h = robot.stop(vrep, h);
+
+	% Set the navigation difficulty
+	navigationDifficulty = 'easy';
 
 	% Get the table difficulty
 	if strcmp(difficulty, 'hard')
@@ -29,17 +31,18 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 7
 		map.load(varargin{1});
-		robot.setInitPos(robot.getRelativePositionFromGPS(vrep, id, h) - [map.mapWidth, map.mapHeight]);
+		robot.setInitPos(vrep, id, h, [map.mapWidth, map.mapHeight], navigationDifficulty);
 	end
 
 	% Initialize action type and state of the finite state machine
 	action = 'move';
 	state = 'explore';
-	
+
 	% Initialize the path and the objective of the robot
 	% (for 'move' actions)
 	pathList = [];
 	objective = [];
+
 	hasAccCurrentObj = true;
 
 	% Initialize variable for tables analyzing
@@ -50,36 +53,15 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 	nearObjective = false;
 
 
-	%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% Display information %%
-	%%%%%%%%%%%%%%%%%%%%%%%%%
-
-	% Console debug
-	fprintf('\n***************************************\n');
-	fprintf('* The robot begins state manipulation *\n');
-	fprintf('***************************************\n\n');
-	
-	fprintf('In this state, he will grasp some objects and bring them to a specific table.\n\n');
-	fprintf('Robot is manipulating objects...\n');
-	
-	% We reset possible previous figure(s)
-	clf;
-
-	% Make sure everything is settled before we start
-	pause(2);
-
-
 	%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Tables information %%
 	%%%%%%%%%%%%%%%%%%%%%%%%
-	
+
 	% Find center positions and radius of the tables
 	map.findTables();
 
 	% Initialize current table for analysis
 	if isempty(map.tablesRadius)
-		fprintf('No table found, simulation stops here.\n');
-
 		return;
 	else
 		currentTable = 0;
@@ -99,15 +81,11 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 		end
 
 
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		%% Get position and orientation of the robot %%
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		
-		% Get position and orientation
-		% TO DO : for this milestone, we can not use the
-		% GPS, so we will have to change this code
-		absPos = robot.getAbsolutePositionFromGPS(vrep, id, h);
-		orientation = robot.getOrientation(vrep, id, h);
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%% Update position and orientation of the robot %%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+		robot.updatePositionAndOrientation(vrep, id, h, navigationDifficulty);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -143,7 +121,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 				% If the path is empty, either all tables
 				% have been explored, or there remains tables
-				% to explore
+				% to explore.
 
 				if isempty(pathList)
 
@@ -162,7 +140,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 					% If there is no more table, all tables have
 					% been explore, we can move to next state,
-					% else we have to define path to next table
+					% else we have to define path to next table.
 
 					currentTable = currentTable + 1;
 
@@ -172,16 +150,16 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 						continue;
 					else
+
 						% We stop the robot during the calculation
-						robot.setVelocitiesToStop();
-						h = robot.drive(vrep, h);
+						h = robot.stop(vrep, h);
 
 						% We get the next table information
 						nextTable = map.tablesCenterPositions(currentTable, :);
 						nextRadius = map.tablesRadius(currentTable);
 
 						% Setup point to determine path
-						occMatPos = round(absPos .* map.mapPrec);
+						occMatPos = round(robot.absPos .* map.mapPrec);
 						nextPoint = nextTable + nextRadius;
 
 						% We get path to the next table
@@ -197,14 +175,15 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 				% If the path list is empty, either the robot is near
 				% the object table, and it is OK or the robot has to
-				% go the this object table and so we determine a path
+				% go the this object table and so we determine a path.
 
 				if isempty(pathList)
 
 					% We check if the robot is already near the object
-					% table
-					
+					% table.
+
 					if nearObjects
+
 						% Set the flag
 						nearObjective = false;
 
@@ -214,6 +193,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 						continue;
 					else
+
 						% Set the flag
 						nearObjects = true;
 
@@ -223,7 +203,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 						tableRadius = map.tablesRadius(tableID);
 
 						% Setup point to determine path
-						occMatPos = round(absPos .* map.mapPrec);
+						occMatPos = round(robot.absPos .* map.mapPrec);
 						nextPoint = tablePos + tableRadius;
 
 						% We get path to the table
@@ -239,14 +219,15 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 				% If the path list is empty, either the robot is near
 				% the objective table, and it is OK or the robot has to
-				% go the this objective table and so we determine a path
+				% go the this objective table and so we determine a path.
 
 				if isempty(pathList)
 
 					% We check if the robot is already near the objective
-					% table
-					
+					% table.
+
 					if nearObjective
+
 						% Set the flag
 						nearObjects = false;
 
@@ -256,6 +237,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 						continue;
 					else
+
 						% Set the flag
 						nearObjective = true;
 
@@ -265,7 +247,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 						tableRadius = map.tablesRadius(tableID);
 
 						% Setup point to determine path
-						occMatPos = round(absPos .* map.mapPrec);
+						occMatPos = round(robot.absPos .* map.mapPrec);
 						nextPoint = tablePos + tableRadius;
 
 						% We get path to the table
@@ -276,7 +258,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%
 			% Unknown state %
 			%%%%%%%%%%%%%%%%%
-			
+
 			else
 				error('Unknown state');
 			end
@@ -286,13 +268,14 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 			if hasAccCurrentObj
+
 				% Save the next objective to display it
 				mapObjective = pathList(end, :);
-				
+
 				% Get the next objective
-				[objective(1), objective(2)] = utils.toCartesian(pathList(end, 1), pathList(end, 2), size(map.getOccupancyMatrix(), 1));
+				[objective(1), objective(2)] = utils.toCartesian(pathList(end, 1), pathList(end, 2), map.matrixWidth);
 				objective = objective ./ map.mapPrec;
-				
+
 				% Remove the next objective from the path
 				pathList(end, :) = [];
 			end
@@ -300,17 +283,14 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 			% Move the robot depending of the objective %
 			%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-			
+
 			% We check if robot has accomplished its current objective
-			hasAccCurrentObj = robot.checkObjective(absPos, orientation, objective, false);
-			
-			% If robot has not accomplished its objective, we set the velocities
+			hasAccCurrentObj = robot.checkObjective(objective, false);
+
+			% If robot has not accomplished its objective, we move it
 			if ~hasAccCurrentObj
-				robot.setVelocitiesToMove(absPos, orientation, objective, false);
+				h = robot.move(vrep, h, objective, false);
 			end
-			
-			% We drive the robot
-			h = robot.drive(vrep, h);
 
 		%%%%%%%%%%%%%%%%%%%
 		% 'static' action %
@@ -323,28 +303,27 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%%%
 
 			if strcmp(state, 'analyze')
+
 				% The goal is to take a photo of the table and
 				% to analyze it. So we have to adjust the robot
 				% and take a photo, and then analyze it.
 
 				% Rotate the robot to align it with the table
-				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(1), nextTable(2), size(map.getOccupancyMatrix(), 1));
+				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(1), nextTable(2), map.matrixWidth);
 				rotObj = rotObj ./ map.mapPrec;
-				
-				rotAngl = robot.setVelocitiesToRotate(absPos, orientation, rotObj);
-				h = robot.drive(vrep, h);
+
+				[h, rotAngl] = robot.rotate(vrep, h, rotObj);
 
 				% If the distance is smaller than a threshold,
 				% stop and take a photo
-				if robot.checkObjective(absPos, orientation, rotAngl, true)
+				if robot.checkObjective(rotAngl, true)
 
 					% Stop the robot
-					robot.setVelocitiesToStop();
-					h = robot.drive(vrep, h);
+					h = robot.stop(vrep, h);
 
 					% Take a photo
 					pause(2);
-					
+
 					img = robot.takePhoto(vrep, id, h);
 
 					% Determine table type and update the data
@@ -366,10 +345,10 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'grasp')
+
 				% Stop the robot
-				robot.setVelocitiesToStop();
-				h = robot.drive(vrep, h);
-				
+				h = robot.stop(vrep, h);
+
 				% Grasp an object
 				robot.graspObject(vrep, id, h);
 
@@ -384,9 +363,9 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			%%%%%%%%%%%%%%%%
 
 			elseif strcmp(state, 'drop')
+
 				% Stop the robot
-				robot.setVelocitiesToStop();
-				h = robot.drive(vrep, h);
+				h = robot.stop(vrep, h);
 
 				% Drop the grasped object
 				disp('DROP');
@@ -417,23 +396,23 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		%% Show the map and its components %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		
-		% Show the map with robot (absolute) position and path (if any)
+
 		if ~isempty(pathList)
 			pathDisp = [pathList; mapObjective];
 		else
 			pathDisp = [];
 		end
 
-		map.show(round(absPos .* map.mapPrec), pathDisp);
+		map.show(round(robot.absPos .* map.mapPrec), pathDisp);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
 		%% Physic verifications %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
-		
+
 		% Make sure that we do not go faster than the physics
-		% simulation (it is useless to go faster)
+		% simulation (it is useless to go faster).
+
 		elapsed = toc;
 		timeleft = timestep - elapsed;
 

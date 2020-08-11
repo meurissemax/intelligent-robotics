@@ -8,19 +8,19 @@ function main()
 	%% Values initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	% Scene
-	scenePath = '../resources/scenes/house_2020.ttt';
+	% Scene name (for exportation)
+	sceneName = 'house_2020';
 
 	% Map dimensions
 	mapWidth = 15;
 	mapHeight = 15;
 	mapPrec = 5;
 
-	% SLAM (for navigation)
-	slam = false;
+	% Navigation difficulty ('easy', 'medium', 'hard')
+	navigationDifficulty = 'easy';
 
-	% Table difficulty (for manipulation, 'easy' or 'hard')
-	difficulty = 'easy';
+	% Manipulation difficulty ('easy' or 'hard')
+	manipulationDifficulty = 'easy';
 
 	% Timestep of the simulator
 	timestep = .05;
@@ -31,12 +31,11 @@ function main()
 
 	% Initialize the mesh grid (for the data retrieving
 	% of the Hokuyo)
-	meshSize = 1 / mapPrec;
-	robot.setMeshGrid(meshSize);
+	robot.setMeshGrid(1 / mapPrec);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%% Simulator initialisation %%
+	%% Simulator initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	fprintf('Program started\n');
@@ -49,7 +48,7 @@ function main()
 	% If the connection has failed
 	if id < 0
 		fprintf('Failed connecting to remote API server. Exiting.\n');
-		
+
 		vrep.delete();
 
 		return;
@@ -61,15 +60,15 @@ function main()
 	% Make sure we close the connection whenever the script is interrupted
 	cleanupObj = onCleanup(@() cleanup_vrep(vrep, id));
 
-	% Open the desired scene
-	vrep.simxLoadScene(id, scenePath, 1, vrep.simx_opmode_oneshot_wait);
-
 	% Start the simulation
 	vrep.simxStartSimulation(id, vrep.simx_opmode_oneshot_wait);
 
-	% Retrieve all handles, mostly the Hokuyo
+	% Retrieve all handles
 	h = youbot_init(vrep, id);
 	h = youbot_hokuyo_init(vrep, h);
+
+	% Reset possible previous figure(s)
+	clf;
 
 	% Make sure everything is settled before we start (wait for the simulation to start)
 	pause(0.2);
@@ -78,15 +77,24 @@ function main()
 	%%%%%%%%%%%%%%%%
 	%% Milestones %%
 	%%%%%%%%%%%%%%%%
-	
-	navigation(vrep, id, h, timestep, map, robot, slam, scenePath);
-	manipulation(vrep, id, h, timestep, map, robot, difficulty);
+
+	% Navigation
+	fprintf('Robot is exploring the map...\n');
+
+	navigation(vrep, id, h, timestep, map, robot, navigationDifficulty, sceneName);
+
+	% Manipulation
+	fprintf('Robot is manipulating objects...\n');
+
+	manipulation(vrep, id, h, timestep, map, robot, manipulationDifficulty);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Simulator termination %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	
+
 	vrep.simxStopSimulation(id, vrep.simx_opmode_oneshot_wait);
 	vrep.simxFinish(-1);
+
+	fprintf('Program terminated\n');
 end
