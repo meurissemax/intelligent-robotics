@@ -9,7 +9,7 @@ This project has been realized by :
 
 as part of the *Introduction to intelligent robotics* course given by Professor **Sacré** to the master students of Civil Engineering at the [University of Liège](https://www.uliege.be/) during the academic year 2019-2020 and uses the following resources to run :
 
-* [MATLAB R2020a](https://www.mathworks.com/products/matlab.html) with : 
+* [MATLAB R2020a](https://www.mathworks.com/products/matlab.html) with :
 	* [Robotics System](https://www.mathworks.com/products/robotics.html) toolbox
 	* [Navigation](https://www.mathworks.com/products/navigation.html) toolbox
 	* [Image Processing](https://www.mathworks.com/products/image.html) toolbox

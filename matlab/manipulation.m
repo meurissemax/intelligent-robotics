@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
+function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
@@ -16,7 +16,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 	% initialized.
 
 	% Stop the robot (just to be sure)
-	h = robot.stop(vrep, h);
+	robot.stop();
 
 	% Set the navigation difficulty
 	navigationDifficulty = 'easy';
@@ -31,7 +31,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 7
 		map.load(varargin{1});
-		robot.setInitPos(vrep, id, h, [map.mapWidth, map.mapHeight], navigationDifficulty);
+		robot.setInitPos([map.mapWidth, map.mapHeight], navigationDifficulty);
 	end
 
 	% Initialize action type and state of the finite state machine
@@ -85,7 +85,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(vrep, id, h, navigationDifficulty);
+		robot.updatePositionAndOrientation(navigationDifficulty);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -152,7 +152,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 					else
 
 						% We stop the robot during the calculation
-						h = robot.stop(vrep, h);
+						robot.stop();
 
 						% We get the next table information
 						nextTable = map.tablesCenterPositions(currentTable, :);
@@ -289,7 +289,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 
 			% If robot has not accomplished its objective, we move it
 			if ~hasAccCurrentObj
-				h = robot.move(vrep, h, objective, false);
+				robot.move(objective, false);
 			end
 
 		%%%%%%%%%%%%%%%%%%%
@@ -312,19 +312,19 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(1), nextTable(2), map.matrixWidth);
 				rotObj = rotObj ./ map.mapPrec;
 
-				[h, rotAngl] = robot.rotate(vrep, h, rotObj);
+				rotAngl = robot.rotate(rotObj);
 
 				% If the distance is smaller than a threshold,
 				% stop and take a photo
 				if robot.checkObjective(rotAngl, true)
 
 					% Stop the robot
-					h = robot.stop(vrep, h);
+					robot.stop();
 
 					% Take a photo
 					pause(2);
 
-					img = robot.takePhoto(vrep, id, h);
+					img = robot.takePhoto();
 
 					% Determine table type and update the data
 					tableType = robot.getTableTypeFromImage(img);
@@ -347,10 +347,10 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			elseif strcmp(state, 'grasp')
 
 				% Stop the robot
-				h = robot.stop(vrep, h);
+				robot.stop();
 
 				% Grasp an object
-				robot.graspObject(vrep, id, h);
+				robot.graspObject();
 
 				% Update state of the robot
 				action = 'move';
@@ -365,7 +365,7 @@ function manipulation(vrep, id, h, timestep, map, robot, difficulty, varargin)
 			elseif strcmp(state, 'drop')
 
 				% Stop the robot
-				h = robot.stop(vrep, h);
+				robot.stop();
 
 				% Drop the grasped object
 				disp('DROP');

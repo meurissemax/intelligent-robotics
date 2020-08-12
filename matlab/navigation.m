@@ -2,17 +2,17 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
+function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
 	%%%%%%%%%%%%%%%%%%%%
-	
+
 	% Display information
 	fprintf('\n**************\n* Navigation *\n**************\n\n');
 
 	% Set the initial position of the robot
-	robot.setInitPos(vrep, id, h, [map.mapWidth, map.mapHeight], difficulty);
+	robot.setInitPos([map.mapWidth, map.mapHeight], difficulty);
 
 	% Set the position of the robot and his neighborhood
 	% (radius of 2) to 0 (free position)
@@ -43,7 +43,7 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(vrep, id, h, difficulty);
+		robot.updatePositionAndOrientation(difficulty);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -51,7 +51,7 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		% Update the data of the robot
-		robot.updateDataFromHokuyo(vrep, h);
+		robot.updateDataFromHokuyo();
 
 		% Update the map with data from Hokuyo
 		map.setPoints(robot.inValue, 0);
@@ -92,9 +92,9 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 			% If yes, we have to define a new path to get a new objective.
 
 			if isempty(pathList)
-				
+
 				% We stop the robot during the calculation
-				h = robot.stop(vrep, h);
+				robot.stop();
 
 				% We check if map is possibly explored.
 				% If yes, we stop the simulation : exploration is done.
@@ -164,7 +164,7 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 
 		% If robot has not accomplished its objective, we move it
 		if ~hasAccCurrentObj
-			h = robot.move(vrep, h, objective, stuck);
+			robot.move(objective, stuck);
 		end
 
 

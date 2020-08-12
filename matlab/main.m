@@ -25,14 +25,6 @@ function main()
 	% Timestep of the simulator
 	timestep = 0.05;
 
-	% Map and robot instance
-	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
-	robot = classes.RobotController();
-
-	% Initialize the mesh grid (for the data retrieving
-	% of the Hokuyo)
-	robot.setMeshGrid(1 / mapPrec);
-
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Simulator initialization %%
@@ -74,12 +66,25 @@ function main()
 	pause(0.2);
 
 
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Objects initialization %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	% Map and robot instance
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
+	robot = classes.RobotController(vrep, id, h);
+
+	% Initialize the mesh grid (for the data retrieving
+	% of the Hokuyo)
+	robot.setMeshGrid(1 / mapPrec);
+
+
 	%%%%%%%%%%%%%%%%
 	%% Milestones %%
 	%%%%%%%%%%%%%%%%
-	
-	navigation(vrep, id, h, timestep, map, robot, navigationDifficulty, sceneName);
-	manipulation(vrep, id, h, timestep, map, robot, manipulationDifficulty);
+
+	navigation(vrep, id, timestep, map, robot, navigationDifficulty, sceneName);
+	manipulation(vrep, id, timestep, map, robot, manipulationDifficulty);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%

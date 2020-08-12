@@ -22,6 +22,11 @@ classdef RobotController < handle
 	end
 
 	properties (Access = private)
+		% Simulator linked to the robot
+		vrep
+		id
+		h
+
 		% Initial position of the robot
 		initPos
 
@@ -52,14 +57,23 @@ classdef RobotController < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function setInitPos(obj, vrep, id, h, mapDimensions, difficulty)
+		function obj = RobotController(vrep, id, h)
+			% Constructor of the class. It sets the parameters of the
+			% simulator linked to the robot.
+
+			obj.vrep = vrep;
+			obj.id = id;
+			obj.h = h;
+		end
+
+		function setInitPos(obj, mapDimensions, difficulty)
 			% Set the initial position of the robot. This initial position
 			% is set once and does not change in the future.
 			%
 			% The initialization depends on the difficulty (i.e. the milestone).
 
 			if strcmp(difficulty, 'easy')
-				obj.initPos = obj.getRelativePositionFromGPS(vrep, id, h) - mapDimensions;
+				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 			else
 				obj.initPos = mapDimensions;
 			end
@@ -82,14 +96,14 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 
-		function updatePositionAndOrientation(obj, vrep, id, h, difficulty)
+		function updatePositionAndOrientation(obj, difficulty)
 			% Update the position and orientation of the robot.
 			%
 			% The update depends on the difficulty (i.e. the milestone).
 
 			% Position
 			if strcmp(difficulty, 'easy')
-				obj.absPos = obj.getRelativePositionFromGPS(vrep, id, h) - obj.initPos;
+				obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
 			else
 				obj.absPos = obj.initPos;
 			end
@@ -98,11 +112,11 @@ classdef RobotController < handle
 			if strcmp(difficulty, 'hard')
 				obj.orientation = pi;
 			else
-				obj.orientation = obj.getOrientationFromSensor(vrep, id, h);
+				obj.orientation = obj.getOrientationFromSensor();
 			end
 		end
 
-		function updateDataFromHokuyo(obj, vrep, h)
+		function updateDataFromHokuyo(obj)
 			% Retrieve data from Hokuyo sensor. 'inValue' corresponds to
 			% free points detected by the Hokuyo and 'inPts' corresponds
 			% to unreachable points detected by Hokuyo (wall, obstacle,
@@ -115,8 +129,8 @@ classdef RobotController < handle
 			trf = transl([obj.absPos, 0]) * trotx(obj.orientation(1)) * troty(obj.orientation(2)) * trotz(obj.orientation(3));
 
 			% Point obtention (from Hokuyo)
-			[pts, cts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-			simplifiedPoly = imported.simplifyPolygon([h.hokuyo1Pos(1), pts(1, :), h.hokuyo2Pos(1); h.hokuyo1Pos(2), pts(2, :), h.hokuyo2Pos(2)]);
+			[pts, cts] = youbot_hokuyo(obj.vrep, obj.h, obj.vrep.simx_opmode_buffer);
+			simplifiedPoly = imported.simplifyPolygon([obj.h.hokuyo1Pos(1), pts(1, :), obj.h.hokuyo2Pos(1); obj.h.hokuyo1Pos(2), pts(2, :), obj.h.hokuyo2Pos(2)]);
 			in = inpolygon(obj.X, obj.Y, simplifiedPoly(1, :), simplifiedPoly(2, :));
 
 			% Transforming inside points to absolute reference
@@ -193,7 +207,7 @@ classdef RobotController < handle
 			end
 		end
 
-		function h = move(obj, vrep, h, objective, backward)
+		function move(obj, objective, backward)
 			% Set the velocities of the robot according to its position
 			% and its orientation so that the robot can reach the
 			% objective 'objective'.
@@ -230,10 +244,10 @@ classdef RobotController < handle
 			end
 
 			% We drive the robot
-			h = obj.drive(vrep, h);
+			obj.drive();
 		end
 
-		function [h, rotAngl] = rotate(obj, vrep, h, objective)
+		function rotAngl = rotate(obj, objective)
 			% Set velocities so that the robot only do a rotation to
 			% align itself with an objective 'objective'.
 
@@ -245,10 +259,10 @@ classdef RobotController < handle
 			obj.rotVel = obj.rotVelFact * angdiff(rotAngl, obj.orientation(3)) / 2;
 
 			% We drive the robot
-			h = obj.drive(vrep, h);
+			obj.drive();
 		end
 
-		function h = stop(obj, vrep, h)
+		function stop(obj)
 			% Set the velocities to stop the robot.
 
 			% We set all velocities to 0
@@ -256,20 +270,20 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% We drive the robot
-			h = obj.drive(vrep, h);
+			obj.drive();
 		end
 
-		function img = takePhoto(~, vrep, id, h)
+		function img = takePhoto(obj)
 			% Take a (front) picture with the robot and return
 			% the image.
 
 			% Setup the sensor for capturing an image
-			res = vrep.simxSetIntegerSignal(id, 'handle_rgb_sensor', 1, vrep.simx_opmode_oneshot_wait);
-			vrchk(vrep, res);
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_rgb_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
 
 			% Capturing the image
-			[res, ~, img] = vrep.simxGetVisionSensorImage2(id, h.rgbSensor, 0, vrep.simx_opmode_oneshot_wait);
-			vrchk(vrep, res);
+			[res, ~, img] = obj.vrep.simxGetVisionSensorImage2(obj.id, obj.h.rgbSensor, 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
 		end
 
 		function tableType = getTableTypeFromImage(~, img)
@@ -306,38 +320,38 @@ classdef RobotController < handle
 			end
 		end
 
-		function graspObject(~, vrep, id, h)
+		function graspObject(obj)
 			% Grasp an object.
 
 			% Set the inverse kinematics (IK) mode to position and orientation (km_mode = 2)
-			res = vrep.simxSetIntegerSignal(id, 'km_mode', 2, vrep.simx_opmode_oneshot_wait);
-			vrchk(vrep, res, true);
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 2, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res, true);
 
 			% Set the new position to the expected one for the gripper (predetermined value)
 			tpos = [0.3259, -0.0010, 0.2951];
 
-			res = vrep.simxSetObjectPosition(id, h.ptarget, h.armRef, tpos, vrep.simx_opmode_oneshot);
-			vrchk(vrep, res, true);
+			res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
+			vrchk(obj.vrep, res, true);
 
 			% Wait long enough so that the tip is at the right position
 			pause(5);
 
 			% Remove the inverse kinematics (IK) mode so that joint angles can be set individually
-			res = vrep.simxSetIntegerSignal(id, 'km_mode', 0, vrep.simx_opmode_oneshot_wait);
-			vrchk(vrep, res, true);
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res, true);
 
 			% Set the new gripper angle
 			tangle = 0;
 
-			res = vrep.simxSetJointTargetPosition(id, h.armJoints(5), tangle, vrep.simx_opmode_oneshot);
-			vrchk(vrep, res, true);
+			res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(5), tangle, obj.vrep.simx_opmode_oneshot);
+			vrchk(obj.vrep, res, true);
 
 			% Wait long enough so that the tip is at the right position
 			pause(5);
 
 			% Open the gripper
-			res = vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot_wait);
-			vrchk(vrep, res);
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
 
 			% Make MATLAB wait for the gripper to be closed
 			pause(3);
@@ -345,27 +359,27 @@ classdef RobotController < handle
 	end
 
 	methods (Access = private)
-		function relPos = getRelativePositionFromGPS(~, vrep, id, h)
+		function relPos = getRelativePositionFromGPS(obj)
 			% Get the relative position of the robot. The relative position
 			% is the position obtained via the GPS of the robot. So, this
 			% position does not correspond to the position of the robot
 			% in the occupancy map.
 
-			[res, relPos] = vrep.simxGetObjectPosition(id, h.ref, -1, vrep.simx_opmode_buffer);
-			vrchk(vrep, res, true);
+			[res, relPos] = obj.vrep.simxGetObjectPosition(obj.id, obj.h.ref, -1, obj.vrep.simx_opmode_buffer);
+			vrchk(obj.vrep, res, true);
 
 			% By default, 'relPos' is a [x y z] vector. We only keep
 			% [x y] values (because y is useless for this project)
 			relPos = relPos(1:2);
 		end
 
-		function orientation = getOrientationFromSensor(~, vrep, id, h)
+		function orientation = getOrientationFromSensor(obj)
 			% Get the orientation of the robot. By default, orientation
 			% is a vector [phi theta psi] (Euler's angles). For this
 			% project, only 'psi' angle really matters.
 
-			[res, orientation] = vrep.simxGetObjectOrientation(id, h.ref, -1, vrep.simx_opmode_buffer);
-			vrchk(vrep, res, true);
+			[res, orientation] = obj.vrep.simxGetObjectOrientation(obj.id, obj.h.ref, -1, obj.vrep.simx_opmode_buffer);
+			vrchk(obj.vrep, res, true);
 		end
 
 		function rotAngl = getAngleTo(obj, objective)
@@ -377,14 +391,14 @@ classdef RobotController < handle
 			rotAngl = sign(objective(1) - obj.absPos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 		end
 
-		function h = drive(obj, vrep, h)
+		function drive(obj)
 			% Use the defined velocities of the robot to move it.
 			%
 			% Remark : left-right velocity has been set to 0 because
 			% we decided to not use it since it is very difficult
 			% to apply SLAM techniques with such displacements.
 
-			h = youbot_drive(vrep, h, obj.forwBackVel, 0, obj.rotVel);
+			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, 0, obj.rotVel);
 		end
 	end
 end
