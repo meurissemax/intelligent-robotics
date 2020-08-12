@@ -40,7 +40,7 @@ classdef MapManager < handle
 		inflatedFact = 0.6;
 
 		% Exploration threshold (percentage of points to visit)
-		explThresh = 0.985;
+		explThresh = 0.995;
 
 		% Possible connection distance between points for
 		% path algorithm
@@ -196,7 +196,7 @@ classdef MapManager < handle
 			nextPath = obj.optimizePath(pathList);
 		end
 
-		function explored = isExplored(obj)
+		function [explored, p] = isExplored(obj)
 			% Check if the map can be consired as explored or not.
 
 			% By default, map is not yet fully explored
@@ -206,7 +206,7 @@ classdef MapManager < handle
 			occMat = obj.getOccupancyMatrix();
 
 			% Number of points representing the map in the occupancy matrix
-			totalPts = numel(occMat);
+			totalPts = obj.mapWidth * obj.mapHeight * power(obj.mapPrec, 2);
 
 			% Count the number of points discovered (free and obstacle)
 			discoveredPts = nnz(occMat == 0) + nnz(occMat == 1);

@@ -7,6 +7,9 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
 	%%%%%%%%%%%%%%%%%%%%
+	
+	% Display information
+	fprintf('\n**************\n* Navigation *\n**************\n\n');
 
 	% Set the initial position of the robot
 	robot.setInitPos(vrep, id, h, [map.mapWidth, map.mapHeight], difficulty);
@@ -66,6 +69,8 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 		% defined at next iteration.
 
 		if stuck
+			fprintf('Robot is stuck. Objective updated to save it.\n');
+
 			pathList = [];
 			objective = stuckObjective;
 
@@ -87,15 +92,22 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 			% If yes, we have to define a new path to get a new objective.
 
 			if isempty(pathList)
+				
+				% We stop the robot during the calculation
+				h = robot.stop(vrep, h);
 
 				% We check if map is possibly explored.
 				% If yes, we stop the simulation : exploration is done.
 				% If no, we define a new path.
 
-				% We stop the robot during the calculation
-				h = robot.stop(vrep, h);
+				[explored, p] = map.isExplored();
 
-				if map.isExplored()
+				fprintf('Map is explored at %.2f%%.\n', p * 100);
+
+				if explored
+
+					% Display information
+					fprintf('Map is fully explored ! Its representation will be exported.\n');
 
 					% Export the map
 					map.export(sceneName);
@@ -103,6 +115,9 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 					% Stop the simulation
 					break;
 				else
+
+					% Display information
+					fprintf('Determining new objective and path...\n');
 
 					% We get the point from which we determine new path
 					% (front point of the Hokuyo)
@@ -115,6 +130,9 @@ function navigation(vrep, id, h, timestep, map, robot, difficulty, sceneName)
 					% If we can not find a new path, the map has been probably
 					% fully explored
 					if pathList == Inf
+
+						% Display information
+						fprintf('Unable to determine new objective or path. Navigation will stop here.\n');
 
 						% Export the map
 						map.export(sceneName);

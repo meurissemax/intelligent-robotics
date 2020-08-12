@@ -23,7 +23,7 @@ function main()
 	manipulationDifficulty = 'easy';
 
 	% Timestep of the simulator
-	timestep = .05;
+	timestep = 0.05;
 
 	% Map and robot instance
 	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
@@ -38,7 +38,7 @@ function main()
 	%% Simulator initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	fprintf('Program started\n');
+	fprintf('Program started.\n');
 
 	% Connection to the simulator
 	vrep = remApi('remoteApi');
@@ -77,15 +77,8 @@ function main()
 	%%%%%%%%%%%%%%%%
 	%% Milestones %%
 	%%%%%%%%%%%%%%%%
-
-	% Navigation
-	fprintf('Robot is exploring the map...\n');
-
+	
 	navigation(vrep, id, h, timestep, map, robot, navigationDifficulty, sceneName);
-
-	% Manipulation
-	fprintf('Robot is manipulating objects...\n');
-
 	manipulation(vrep, id, h, timestep, map, robot, manipulationDifficulty);
 
 
@@ -96,5 +89,5 @@ function main()
 	vrep.simxStopSimulation(id, vrep.simx_opmode_oneshot_wait);
 	vrep.simxFinish(-1);
 
-	fprintf('Program terminated\n');
+	fprintf('Program terminated.\n');
 end
