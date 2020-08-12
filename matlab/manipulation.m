@@ -8,6 +8,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	%% Initialization %%
 	%%%%%%%%%%%%%%%%%%%%
 
+	% Display information
+	fprintf('\n*****************\n* Manipulation *\n****************\n\n');
+
 	% To initialize the map, either the information comes
 	% from the navigation phase (map and robot objects),
 	% either an additional argument (sceneName) can be passed
@@ -15,7 +18,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% from a .mat file and the position of the robot is
 	% initialized.
 
-	% Stop the robot (just to be sure)
+	% Stop the robot during initialization (just to be sure)
 	robot.stop();
 
 	% Set the navigation difficulty
