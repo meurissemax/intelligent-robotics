@@ -160,9 +160,11 @@ classdef MapManager < handle
 			occMatInf(stopPoint(1), stopPoint(2)) = 0;
 
 			% Set neighborhood of start point to 0 (to be sure that A* can begin)
+			sizeOccMatInf = size(occMatInf);
+
 			for x = startPoint(1) - 1:1:startPoint(1) + 1
 				for y = startPoint(2) - 1:1:startPoint(2) + 1
-					if x >= 1 && y >= 1 && x <= size(occMatInf, 1) && y <= size(occMatInf, 2) && (x ~= startPoint(1) || y ~= startPoint(2))
+					if x >= 1 && y >= 1 && x <= sizeOccMatInf(1) && y <= sizeOccMatInf(2) && (x ~= startPoint(1) || y ~= startPoint(2))
 						occMatInf(x, y) = 0;
 					end
 				end
@@ -406,7 +408,7 @@ classdef MapManager < handle
 				for j = 1:sizeY
 
 					% Possible candidate for closest point are inexplored points
-					if occMat(i, j) == -1
+					if occMat(i, j) < 0
 						hasFreeNeighbor = false;
 
 						% We check if there is (at least) an explored and free point
@@ -467,7 +469,7 @@ classdef MapManager < handle
 				a = polyarea(x, y);
 
 				% We check if we have to keep the point
-				if a > 0
+				if a > 0.4
 					keep = true;
 				end
 

@@ -40,14 +40,14 @@ classdef RobotController < handle
 
 		% Velocity multipliers
 		forwBackVelFact = 5;
-		rotVelFact = 1.8;
+		rotVelFact = 1.5;
 
 		% Movements tolerances
 		movPrecision = 0.25;
 		rotPrecision = 0.01;
 
 		% Parameter when the robot is near an obstacle
-		nearTresh = 0.5;
+		nearTresh = 0.45;
 	end
 
 
@@ -158,8 +158,10 @@ classdef RobotController < handle
 			inFrontPts = [0.25, 0.5, 0.75];
 			distFront = zeros(1, numel(inFrontPts));
 
+			sizeInPts = size(obj.inPts, 1);
+
 			for i = 1:numel(inFrontPts)
-				inFront = round(size(obj.inPts, 1) * inFrontPts(i));
+				inFront = round(sizeInPts * inFrontPts(i));
 				distFront(i) = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
 			end
 
@@ -169,14 +171,14 @@ classdef RobotController < handle
 			end
 		end
 
-		function hasAccCurrentObj = checkObjective(obj, objective, rotation)
+		function hasAccCurrentObj = checkObjective(obj, objective)
 			% Check if the robot has accomplished its current objective
 			% 'objective'. It is a simple comparison between its position
-			% and 'objective' (objective of the robot).
-			%
-			% 'rotation' is a boolean flag that indicates if the movement
-			% is a rotation or not. In this case, it is a comparison between
-			% the objective angle and the current orientation.
+			% and 'objective' (objective of the robot) or a comparison
+			% between the objective angle and the current orientation
+			% (if the movement is a rotation).
+
+			rotation = numel(objective) == 1;
 
 			if rotation
 				distObj = abs(angdiff(objective, obj.orientation(3)));
@@ -187,13 +189,10 @@ classdef RobotController < handle
 			end
 		end
 
-		function move(obj, objective, backward)
+		function move(obj, objective)
 			% Set the velocities of the robot according to its position
 			% and its orientation so that the robot can reach the
 			% objective 'objective'.
-			%
-			% The 'backward' parameter is a boolean that indicates if
-			% the robot has to go forward (false) or backward (true).
 
 			% We get angle between robot position and objective position
 			rotAngl = obj.getAngleTo(objective);
@@ -206,21 +205,20 @@ classdef RobotController < handle
 			obj.forwBackVel = 0;
 			obj.rotVel = 0;
 
-			if backward
-				obj.forwBackVel = obj.forwBackVelFact * sum(distObjPos);
-			else
-				forward = -obj.forwBackVelFact * sum(distObjPos);
-				rotation = obj.rotVelFact * angdiff(rotAngl, obj.orientation(3));
+			forward = -obj.forwBackVelFact * sum(distObjPos);
+			rotation = obj.rotVelFact * angdiff(rotAngl, obj.orientation(3));
 
-				% We set velocities of the robot according to its objective
-				if distObjRot > 0.5
-					obj.rotVel = rotation;
-				elseif distObjRot > 0.01
-					obj.forwBackVel = forward / 2;
-					obj.rotVel = rotation;
-				else
-					obj.forwBackVel = forward;
-				end
+			% We set velocities of the robot according to its objective
+			if distObjRot > 0.7
+				obj.rotVel = rotation;
+			elseif distObjRot > 0.35
+				obj.forwBackVel = forward / 4;
+				obj.rotVel = rotation / 1.5;
+			elseif distObjRot > 0.01
+				obj.forwBackVel = forward / 2;
+				obj.rotVel = rotation / 3;
+			else
+				obj.forwBackVel = forward;
 			end
 
 			% We drive the robot

@@ -9,7 +9,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	%%%%%%%%%%%%%%%%%%%%
 
 	% Display information
-	fprintf('\n*****************\n* Manipulation *\n****************\n\n');
+	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
 	% To initialize the map, either the information comes
 	% from the navigation phase (map and robot objects),

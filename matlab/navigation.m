@@ -163,11 +163,11 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		% We check if robot has accomplished its current objective
-		hasAccCurrentObj = robot.checkObjective(objective, false);
+		hasAccCurrentObj = robot.checkObjective(objective);
 
 		% If robot has not accomplished its objective, we move it
 		if ~hasAccCurrentObj
-			robot.move(objective, false);
+			robot.move(objective);
 		end
 
 
