@@ -275,7 +275,9 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% We drive the robot
-			obj.drive();
+			while obj.h.previousForwBackVel ~= 0 || obj.h.previousRotVel ~=0
+				obj.drive();
+			end
 		end
 
 		function img = takePhoto(obj)
