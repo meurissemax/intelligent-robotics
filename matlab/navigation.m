@@ -150,7 +150,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 			mapObjective = pathList(end, :);
 
 			% Get the next objective
-			[objective(1), objective(2)] = utils.toCartesian(pathList(end, 1), pathList(end, 2), map.matrixWidth);
+			objective = utils.toCartesian(pathList(end, :), map.matrixWidth);
 			objective = objective ./ map.mapPrec;
 
 			% Remove the next objective from the path

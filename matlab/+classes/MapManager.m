@@ -130,9 +130,6 @@ classdef MapManager < handle
 			% this case, the function will simply determine path to this
 			% point.
 
-			% Get the occupancy matrix
-			occMat = obj.getOccupancyMatrix();
-
 			% Inflate the occupancy matrix
 			mapInflated = copy(obj.map);
 			inflate(mapInflated, obj.inflatedFact);
@@ -142,7 +139,7 @@ classdef MapManager < handle
 			if nargin > 3
 				nextPoint = varargin{1};
 			else
-				nextPoint = obj.getNextPointToExplore([size(occMat, 1) - from(2) + 1, from(1)], occMatInf);
+				nextPoint = obj.getNextPointToExplore([obj.matrixWidth - from(2) + 1, from(1)], occMatInf);
 
 				% If we can not find new point, the map is probably explored
 				if nextPoint == Inf
@@ -153,21 +150,19 @@ classdef MapManager < handle
 			end
 
 			% Get the path to this point
-			startPoint = [size(occMat, 1) - pos(2) + 1, pos(1)];
+			startPoint = [obj.matrixWidth - pos(2) + 1, pos(1)];
 			stopPoint = [nextPoint(1), nextPoint(2)];
 
-			goalPoint = zeros(size(occMat));
+			goalPoint = zeros([obj.matrixWidth, obj.matrixHeight]);
 			goalPoint(stopPoint(1), stopPoint(2)) = 1;
 
 			% Set stop point to 0 (to be sure that A* can reach it)
 			occMatInf(stopPoint(1), stopPoint(2)) = 0;
 
 			% Set neighborhood of start point to 0 (to be sure that A* can begin)
-			sizeOccMatInf = size(occMatInf);
-
 			for x = startPoint(1) - 1:1:startPoint(1) + 1
 				for y = startPoint(2) - 1:1:startPoint(2) + 1
-					if x >= 1 && y >= 1 && x <= sizeOccMatInf(1) && y <= sizeOccMatInf(2) && (x ~= startPoint(1) || y ~= startPoint(2))
+					if x >= 1 && y >= 1 && x <= obj.matrixWidth && y <= obj.matrixHeight && (x ~= startPoint(1) || y ~= startPoint(2))
 						occMatInf(x, y) = 0;
 					end
 				end
@@ -277,8 +272,8 @@ classdef MapManager < handle
 
 			% Visited free points
 			[i_free, j_free] = find(occMat == 0);
-			[x_free, y_free] = utils.toCartesian(i_free, j_free, size(occMat, 1));
-			plot(x_free, y_free, '.g', 'MarkerSize', 10);
+			xy_free = utils.toCartesian([i_free, j_free], obj.matrixWidth);
+			plot(xy_free(:, 1), xy_free(:, 2), '.g', 'MarkerSize', 10);
 			hold on;
 
 			% Points detected by Hokuyo
@@ -292,8 +287,8 @@ classdef MapManager < handle
 
 			% Visited occupied points
 			[i_occ, j_occ] = find(occMat == 1);
-			[x_occ, y_occ] = utils.toCartesian(i_occ, j_occ, size(occMat, 1));
-			plot(x_occ, y_occ, '.r', 'MarkerSize', 10);
+			xy_occ = utils.toCartesian([i_occ, j_occ], obj.matrixWidth);
+			plot(xy_occ(:, 1), xy_occ(:, 2), '.r', 'MarkerSize', 10);
 			hold on;
 
 			% Position of the robot
@@ -312,8 +307,7 @@ classdef MapManager < handle
 					pathConverted = zeros(size(pathDisp, 1), 2);
 
 					for i = 1:size(pathDisp, 1)
-						[x, y] = utils.toCartesian(pathDisp(i, 1), pathDisp(i, 2), size(occMat, 1));
-						pathConverted(i, :) = [x, y];
+						pathConverted(i, :) = utils.toCartesian(pathDisp(i, :), obj.matrixWidth);
 					end
 
 					plot(pathConverted(:, 1), pathConverted(:, 2), '.m', 'MarkerSize', 20);
@@ -330,24 +324,9 @@ classdef MapManager < handle
 			% Tables positions
 			if ~isempty(obj.tablesCenterPositions)
 				for i = 1:numel(obj.tablesRadius)
-					i_center = obj.tablesCenterPositions(i, 1);
-					j_center = obj.tablesCenterPositions(i, 2);
+					xy = utils.toCartesian(obj.tablesCenterPositions(i, :), obj.matrixHeight);
 
-					[x, y] = utils.toCartesian(i_center, j_center, size(occMat, 2));
-
-					tableType = obj.tablesType(i);
-
-					if tableType == 1
-						circleColor = '#3498db';
-					elseif tableType == 2
-						circleColor = '#27ae60';
-					elseif tableType == 3
-						circleColor = '#e74c3c';
-					else
-						circleColor = 'black';
-					end
-
-					viscircles([x, y], obj.tablesRadius(i), 'Color', circleColor, 'LineWidth', 3);
+					viscircles(xy, obj.tablesRadius(i), 'Color', 'black', 'LineWidth', 3);
 					hold on;
 				end
 			end
@@ -395,13 +374,13 @@ classdef MapManager < handle
 	end
 
 	methods (Access = private)
-		function nextPoint = getNextPointToExplore(~, pos, occMat)
+		function nextPoint = getNextPointToExplore(obj, pos, occMat)
 			% Get the next unexplored point (in the occupanct
 			% matrix 'occMat') of the map to visit.
 
 			% We get the occupancy matrix size
-			sizeX = size(occMat, 1);
-			sizeY = size(occMat, 2);
+			sizeX = obj.matrixWidth;
+			sizeY = obj.matrixHeight;
 
 			% We initialize the distance
 			mDist = Inf;

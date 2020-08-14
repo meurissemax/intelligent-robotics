@@ -11,16 +11,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Display information
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
-	% To initialize the map, either the information comes
-	% from the navigation phase (map and robot objects),
-	% either an additional argument (sceneName) can be passed
-	% to the function. In this latter case, the map is loaded
-	% from a .mat file and the position of the robot is
-	% initialized.
-
-	% Stop the robot during initialization (just to be sure)
-	robot.stop();
-
 	% Set the navigation difficulty
 	navigationDifficulty = 'easy';
 
@@ -31,44 +21,64 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		tableDifficulty = 2;
 	end
 
+	% To initialize the map, either the information comes
+	% from the navigation phase (map and robot objects),
+	% either an additional argument (sceneName) can be passed
+	% to the function. In this latter case, the map is loaded
+	% from a .mat file and the position of the robot is
+	% initialized.
+
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 6
 		map.load(varargin{1});
 		robot.setInitPos([map.mapWidth, map.mapHeight], navigationDifficulty);
 	end
 
-	% Initialize action type and state of the finite state machine
-	action = 'move';
+	% Initialize the state of the finite state machine
 	state = 'explore';
 
-	% Initialize the path and the objective of the robot
-	% (for 'move' actions)
+	% Initialize variables for 'goto' state
 	pathList = [];
 	objective = [];
-
 	hasAccCurrentObj = true;
 
-	% Initialize variable for tables analyzing
-	hasAccAnalyze = true;
+	% Initialize variables for 'explore' and 'analyze' states
+	currentTable = 1;
 
-	% Initialize variables for tables navigation
-	nearObjects = false;
-	nearObjective = false;
+	% Initialize variables for 'analyze' state
+	displayTypes = {'empty', 'easy', 'hard'};
 
 
-	%%%%%%%%%%%%%%%%%%%%%%%%
-	%% Tables information %%
-	%%%%%%%%%%%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%%%%%%%
+	%% Tables detection %%
+	%%%%%%%%%%%%%%%%%%%%%%
+
+	% Display information
+	fprintf('Analyzing the map to find tables...\n');
 
 	% Find center positions and radius of the tables
 	map.findTables();
 
 	% Initialize current table for analysis
 	if isempty(map.tablesRadius)
+		fprintf('No table found, manipulation will stop here.\n');
+
 		return;
 	else
-		currentTable = 0;
+		fprintf('%d table(s) found !\n', numel(map.tablesRadius));
 	end
+
+
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Show the map and its components %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+	% Since the rendering of the map is very heavy, we
+	% only show the map once at the beginning. For the
+	% manipulation phase, the update of the map is not
+	% very important (since it is always the same).
+
+	map.show();
 
 
 	%%%%%%%%%%%%%%%
@@ -95,318 +105,263 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%% Finite state machine %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		% For this milestone, we have to define some actions "(state) - action"
-		% in a particular order :
+		% For this part of the project, robot has to handle several states.
+		% It will switch between state until manipulation is done.
 		%
-		% 	1. Go to a table in order to analyze it ('explore') - 'move'
-		% 	2. Analyze the current table do determine its type ('analyze') - 'static'
+		% Tables analysis
+		% ---------------
+		%	1. 'explore' : go to each table detected and 'analyze' and then 'objects'
+		%	2. 'analyze' : infer the type of the table based on sensor data and then 'explore'
 		%
-		% Robot has to repeat operations 1 to 2 until all tables have been analyzed.
+		% Grasping of objects
+		% -------------------
+		%	3. 'objects' : go to the objects table and 'grasp'
+		%	4. 'grasp' : grasp an object (if any, else terminate) and then 'objective'
+		%	5. 'objective' : go to the objective table and 'drop'
+		%	6. 'drop' : drop the grasped object and then 'objects'
 		%
-		% 	3. Go the table with objects ('objects') - 'move'
-		% 	4. Grasp an object ('grasp') - 'static'
-		% 	5. Go the objective table ('objective') - 'move'
-		% 	6. Drop grasped object ('drop') - 'static'
-		%
-		% Robot has to repeat operations 3 to 6 until milestone is finished.
+		% Other states
+		% ------------
+		%	'goto' : move the robot to the objective 'gotoObjective'
+		%	'rotate' : rotate the robot to the objective 'rotateObjective'
 
-		%%%%%%%%%%%%%%%%%
-		% 'move' action %
-		%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%
+		% 'goto' state %
+		%%%%%%%%%%%%%%%%
 
-		if strcmp(action, 'move')
+		if strcmp(state, 'goto')
 
-			%%%%%%%%%%%%%%%%%%%
-			% 'explore' state %
-			%%%%%%%%%%%%%%%%%%%
-
-			if strcmp(state, 'explore')
-
-				% If the path is empty, either all tables
-				% have been explored, or there remains tables
-				% to explore.
-
-				if isempty(pathList)
-
-					% If the path is empty (and init movement has
-					% been done), the robot is near a table so
-					% analyze it.
-
-					if hasAccAnalyze
-						hasAccAnalyze = false;
-					else
-						action = 'static';
-						state = 'analyze';
-
-						continue;
-					end
-
-					% If there is no more table, all tables have
-					% been explore, we can move to next state,
-					% else we have to define path to next table.
-
-					currentTable = currentTable + 1;
-
-					if currentTable > numel(map.tablesRadius)
-						action = 'move';
-						state = 'objects';
-
-						continue;
-					else
-
-						% We stop the robot during the calculation
-						robot.stop();
-
-						% We get the next table information
-						nextTable = map.tablesCenterPositions(currentTable, :);
-						nextRadius = map.tablesRadius(currentTable);
-
-						% Setup point to determine path
-						occMatPos = round(robot.absPos .* map.mapPrec);
-						nextPoint = nextTable + nextRadius;
-
-						% We get path to the next table
-						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
-					end
-				end
-
-			%%%%%%%%%%%%%%%%%%%
-			% 'objects' state %
-			%%%%%%%%%%%%%%%%%%%
-
-			elseif strcmp(state, 'objects')
-
-				% If the path list is empty, either the robot is near
-				% the object table, and it is OK or the robot has to
-				% go the this object table and so we determine a path.
-
-				if isempty(pathList)
-
-					% We check if the robot is already near the object
-					% table.
-
-					if nearObjects
-
-						% Set the flag
-						nearObjective = false;
-
-						% Update the state of the robot
-						action = 'static';
-						state = 'grasp';
-
-						continue;
-					else
-
-						% Set the flag
-						nearObjects = true;
-
-						% Get table position
-						tableID = find(map.tablesType == tableDifficulty);
-						tablePos = map.tablesCenterPositions(tableID, :);
-						tableRadius = map.tablesRadius(tableID);
-
-						% Setup point to determine path
-						occMatPos = round(robot.absPos .* map.mapPrec);
-						nextPoint = tablePos + tableRadius;
-
-						% We get path to the table
-						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
-					end
-				end
-
-			%%%%%%%%%%%%%%%%%%%%%
-			% 'objective' state %
-			%%%%%%%%%%%%%%%%%%%%%
-
-			elseif strcmp(state, 'objective')
-
-				% If the path list is empty, either the robot is near
-				% the objective table, and it is OK or the robot has to
-				% go the this objective table and so we determine a path.
-
-				if isempty(pathList)
-
-					% We check if the robot is already near the objective
-					% table.
-
-					if nearObjective
-
-						% Set the flag
-						nearObjects = false;
-
-						% Update the state of the robot
-						action = 'static';
-						state = 'drop';
-
-						continue;
-					else
-
-						% Set the flag
-						nearObjective = true;
-
-						% Get table position
-						tableID = find(map.tablesType == 1);
-						tablePos = map.tablesCenterPositions(tableID, :);
-						tableRadius = map.tablesRadius(tableID);
-
-						% Setup point to determine path
-						occMatPos = round(robot.absPos .* map.mapPrec);
-						nextPoint = tablePos + tableRadius;
-
-						% We get path to the table
-						pathList = map.getNextPathToExplore(occMatPos, occMatPos, nextPoint);
-					end
-				end
-
-			%%%%%%%%%%%%%%%%%
-			% Unknown state %
-			%%%%%%%%%%%%%%%%%
-
-			else
-				error('Unknown state');
-			end
-
-			%%%%%%%%%%%%%%%%%%%%%%%%%%
-			% Get the next objective %
-			%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+			% Check if robot is currently doing an objective
 			if hasAccCurrentObj
 
-				% Save the next objective to display it
-				mapObjective = pathList(end, :);
+				% If path is empty, robot is arrived at destination
+				% or robot has to plan a path
+				if isempty(pathList)
 
-				% Get the next objective
-				[objective(1), objective(2)] = utils.toCartesian(pathList(end, 1), pathList(end, 2), map.matrixWidth);
-				objective = objective ./ map.mapPrec;
+					% Check if robot is arrived at destination
+					if robot.checkObjective(gotoObjective)
 
-				% Remove the next objective from the path
-				pathList(end, :) = [];
+						% Update state
+						state = previousState;
+					else
+
+						% Stop the robot during calculation
+						robot.stop();
+
+						% Plan a path to the objective
+						absPos = round(robot.absPos .* map.mapPrec);
+						pathList = map.getNextPathToExplore(absPos, absPos, utils.toMatrix(gotoObjective .* map.mapPrec, map.matrixWidth));
+					end
+				else
+
+					% Get the next objective
+					objective = utils.toCartesian(pathList(end, :), map.matrixWidth);
+					objective = objective ./ map.mapPrec;
+
+					% Remove the next objective from the path
+					pathList(end, :) = [];
+
+					% Set the flag
+					hasAccCurrentObj = false;
+				end
+			else
+
+				% We check if robot has accomplished its current objective
+				hasAccCurrentObj = robot.checkObjective(objective);
+
+				% If robot has not accomplished its objective, we move it
+				if ~hasAccCurrentObj
+					robot.move(objective);
+				end
 			end
 
-			%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-			% Move the robot depending of the objective %
-			%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%
+		% 'rotate' state %
+		%%%%%%%%%%%%%%%%%%
 
-			% We check if robot has accomplished its current objective
-			hasAccCurrentObj = robot.checkObjective(objective, false);
+		elseif strcmp(state, 'rotate')
 
-			% If robot has not accomplished its objective, we move it
-			if ~hasAccCurrentObj
-				robot.move(objective, false);
+			% We check if robot has the objective angle
+			if robot.checkObjective(rotateObjective)
+
+				% Update state
+				state = previousState;
+			else
+
+				% Rotate the robot
+				robot.rotate(rotateObjective);
 			end
 
 		%%%%%%%%%%%%%%%%%%%
-		% 'static' action %
+		% 'explore' state %
 		%%%%%%%%%%%%%%%%%%%
 
-		elseif strcmp(action, 'static')
+		elseif strcmp(state, 'explore')
 
-			%%%%%%%%%%%%%%%%%%%
-			% 'analyze' state %
-			%%%%%%%%%%%%%%%%%%%
+			% Check if all tables have been explored
+			if currentTable > numel(map.tablesRadius)
 
-			if strcmp(state, 'analyze')
+				% Update state
+				state = 'objects';
+			else
 
-				% The goal is to take a photo of the table and
-				% to analyze it. So we have to adjust the robot
-				% and take a photo, and then analyze it.
+				% Get the position of the current table
+				currentTablePos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
+				currentTablePos = utils.toCartesian(currentTablePos, map.matrixWidth);
+				currentTablePos = currentTablePos ./ map.mapPrec;
 
-				% Rotate the robot to align it with the table
-				[rotObj(1), rotObj(2)] = utils.toCartesian(nextTable(1), nextTable(2), map.matrixWidth);
-				rotObj = rotObj ./ map.mapPrec;
+				% Check if the robot is already near the current table
+				if robot.checkObjective(currentTablePos)
 
-				rotAngl = robot.rotate(rotObj);
+					% Update state
+					currentTableAngle = robot.getAngleTo(currentTablePos);
+					state = 'analyze';
+				else
 
-				% If the distance is smaller than a threshold,
-				% stop and take a photo
-				if robot.checkObjective(rotAngl, true)
+					% Bring the robot to the current table
+					previousState = state;
+					gotoObjective = currentTablePos;
+					state = 'goto';
 
-					% Stop the robot
-					robot.stop();
+					% Display information
+					fprintf('Go to a table to analyze it.\n');
+				end
+			end
 
-					% Take a photo
-					pause(2);
+		%%%%%%%%%%%%%%%%%%%
+		% 'analyze' state %
+		%%%%%%%%%%%%%%%%%%%
 
-					img = robot.takePhoto();
+		elseif strcmp(state, 'analyze')
 
-					% Determine table type and update the data
-					tableType = robot.getTableTypeFromImage(img);
-					map.tablesType(1, currentTable) = tableType;
+			% We stop the robot
+			robot.stop();
 
-					% Go back to 'explore' state to continue
-					% tables exploration
-					hasAccAnalyze = true;
+			% Check if robot is already aligned with the table
+			if robot.checkObjective(currentTableAngle)
 
-					action = 'move';
-					state = 'explore';
+				% Display information
+				fprintf('Analyzing the table...\n');
 
-					continue;
+				% Take a photo of the table
+				img = robot.takePhoto();
+
+				% Determine table type and update data
+				tableType = robot.getTableTypeFromImage(img);
+				map.tablesType(1, currentTable) = tableType;
+
+				% Update manipulation local variables
+				if tableType == 1
+					tableObjectivePos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
+					tableObjectivePos = utils.toCartesian(tableObjectivePos, map.matrixWidth);
+					tableObjectivePos = tableObjectivePos ./ map.mapPrec;
+				elseif tableType == tableDifficulty
+					tableObjectsPos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
+					tableObjectsPos = utils.toCartesian(tableObjectsPos, map.matrixWidth);
+					tableObjectsPos = tableObjectsPos ./ map.mapPrec;
 				end
 
-			%%%%%%%%%%%%%%%%%
-			% 'grasp' state %
-			%%%%%%%%%%%%%%%%%
+				% Display information
+				fprintf('Table detected as "%s".\n', displayTypes{tableType});
 
-			elseif strcmp(state, 'grasp')
-
-				% Stop the robot
-				robot.stop();
-
-				% Grasp an object
-				robot.graspObject();
-
-				% Update state of the robot
-				action = 'move';
-				state = 'objective';
-
-				continue;
-
-			%%%%%%%%%%%%%%%%
-			% 'drop' state %
-			%%%%%%%%%%%%%%%%
-
-			elseif strcmp(state, 'drop')
-
-				% Stop the robot
-				robot.stop();
-
-				% Drop the grasped object
-				disp('DROP');
-
-				% Update state of the robot
-				action = 'move';
-				state = 'objects';
-
-				continue;
-
-			%%%%%%%%%%%%%%%%%
-			% Unknown state %
-			%%%%%%%%%%%%%%%%%
-
+				% Update the current table and state
+				currentTable = currentTable + 1;
+				state = 'explore';
 			else
-				error('Unknown state');
+
+				% Update state
+				previousState = state;
+				rotateObjective = currentTableAngle;
+				state = 'rotate';
 			end
 
-		%%%%%%%%%%%%%%%%%%
-		% Unknown action %
-		%%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%
+		% 'objects' state %
+		%%%%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'objects')
+
+			% Check if robot is already near the objects table
+			if robot.checkObjective(tableObjectsPos)
+
+				% Update state
+				state = 'grasp';
+			else
+
+				% Bring the robot to the object table
+				previousState = state;
+				gotoObjective = tableObjectsPos;
+				state = 'goto';
+
+				% Display information
+				fprintf('Go to the objects table.\n');
+			end
+
+		%%%%%%%%%%%%%%%%%
+		% 'grasp' state %
+		%%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'grasp')
+
+			% Display information
+			fprintf('Grasping an object...\n');
+
+			% Stop the robot
+			robot.stop();
+
+			% Grasp an object
+			robot.graspObject();
+
+			% Update state of the robot
+			state = 'objective';
+
+		%%%%%%%%%%%%%%%%%%%%%
+		% 'objective' state %
+		%%%%%%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'objective')
+
+			% Check if robot is already near the objective table
+			if robot.checkObjective(tableObjectivePos)
+
+				% Update state
+				state = 'drop';
+			else
+
+				% Bring the robot to the objective table
+				previousState = state;
+				gotoObjective = tableObjectivePos;
+				state = 'goto';
+
+				% Display information
+				fprintf('Go to the objective table.\n');
+			end
+
+		%%%%%%%%%%%%%%%%
+		% 'drop' state %
+		%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'drop')
+
+			% Display information
+			fprintf('Dropping grasped object...\n');
+
+			% Stop the robot
+			robot.stop();
+
+			% Drop the grasped object
+			disp('DROP TO DO');
+
+			% Update state of the robot
+			state = 'objects';
+
+		%%%%%%%%%%%%%%%%%
+		% Unknown state %
+		%%%%%%%%%%%%%%%%%
 
 		else
-			error('Unknown action');
+			error('Unknown state.');
 		end
-
-
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		%% Show the map and its components %%
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-		if ~isempty(pathList)
-			pathDisp = [pathList; mapObjective];
-		else
-			pathDisp = [];
-		end
-
-		map.show(round(robot.absPos .* map.mapPrec), pathDisp);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%

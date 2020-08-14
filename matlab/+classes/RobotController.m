@@ -329,6 +329,15 @@ classdef RobotController < handle
 			end
 		end
 
+		function rotAngl = getAngleTo(obj, objective)
+			% Get angle to aligne robot with 'objective' position.
+
+			a = [0, -1];
+			b = [objective(1) - obj.absPos(1), objective(2) - obj.absPos(2)];
+
+			rotAngl = sign(objective(1) - obj.absPos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
+		end
+
 		function move(obj, objective)
 			% Set the velocities of the robot according to its position
 			% and its orientation so that the robot can reach the
@@ -365,16 +374,13 @@ classdef RobotController < handle
 			obj.drive();
 		end
 
-		function rotAngl = rotate(obj, objective)
+		function rotate(obj, objective)
 			% Set velocities so that the robot only do a rotation to
-			% align itself with an objective 'objective'.
-
-			% We get angle between robot position and objective position
-			rotAngl = obj.getAngleTo(objective);
+			% have the (absolute) angle 'objective'.
 
 			% We set velocities
 			obj.forwBackVel = 0;
-			obj.rotVel = obj.rotVelFact * angdiff(rotAngl, obj.orientation(3)) / 2;
+			obj.rotVel = obj.rotVelFact * angdiff(objective, obj.orientation(3)) / 2;
 
 			% We drive the robot
 			obj.drive();
@@ -500,15 +506,6 @@ classdef RobotController < handle
 
 			[res, orientation] = obj.vrep.simxGetObjectOrientation(obj.id, obj.h.ref, -1, obj.vrep.simx_opmode_buffer);
 			vrchk(obj.vrep, res, true);
-		end
-
-		function rotAngl = getAngleTo(obj, objective)
-			% Get angle to aligne robot with 'objective' position.
-
-			a = [0, -1];
-			b = [objective(1) - obj.absPos(1), objective(2) - obj.absPos(2)];
-
-			rotAngl = sign(objective(1) - obj.absPos(1)) * acos(dot(a, b) / (norm(a) * norm(b)));
 		end
 
 		function drive(obj)
