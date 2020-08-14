@@ -74,8 +74,6 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		% defined at next iteration.
 
 		if stuck
-			fprintf('Robot is stuck. Objective updated to save it.\n');
-
 			pathList = [];
 			objective = stuckObjective;
 

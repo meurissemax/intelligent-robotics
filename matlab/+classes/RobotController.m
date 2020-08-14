@@ -39,16 +39,16 @@ classdef RobotController < handle
 		rotVel = 0;
 
 		% Velocity multipliers
-		forwBackVelFact = 4;
-		rotVelFact = 1.5;
+		forwBackVelFact = 5;
+		rotVelFact = 2;
 
 		% Movements tolerances
-		movPrecision = 0.3;
+		movPrecision = 0.2;
 		rotPrecision = 0.01;
 
 		% Parameters when the robot is stuck
 		stuckTresh = 0.6;
-		stuckDist = 0.4;
+		stuckDist = 0.6;
 	end
 
 
