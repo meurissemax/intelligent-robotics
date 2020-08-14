@@ -48,6 +48,41 @@ classdef RobotController < handle
 
 		% Parameter when the robot is near an obstacle
 		nearTresh = 0.45;
+
+		% Iteration counter
+		it = 0;
+
+		%%%%%%%%%%%%
+		% Odometry %
+		%%%%%%%%%%%%
+
+		% Previous values for the wheel angles
+		prevy1 = NaN;
+		prevy2 = NaN;
+		prevy3 = NaN;
+		prevy4 = NaN;
+
+		% Previous orientation value
+		prevOr = NaN;
+
+		% Estimated positions and orientation
+		posX = NaN;
+		posY = NaN;
+		theta = NaN;
+
+		%%%%%%%%%%%%%%%%%
+		% Scan matching %
+		%%%%%%%%%%%%%%%%%
+
+		% Amount of iterations before two scan matching
+		ctr = 100;
+
+		% Previous pose
+		pX = NaN;
+		pY = NaN; % To give a value sometime
+		or = NaN;
+
+		prevScan;
 	end
 
 
@@ -74,6 +109,21 @@ classdef RobotController < handle
 			if strcmp(difficulty, 'easy')
 				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 			else
+				initOr = obj.getOrientationFromSensor();
+
+				obj.posX = mapDimensions(1);
+				obj.posY = mapDimensions(2);
+				obj.theta = initOr(3) + pi/2;
+
+				obj.pX = mapDimensions(1);
+				obj.pY = mapDimensions(2);
+				obj.or = initOr(3) + pi/2;
+
+				[pts, cts] = youbot_hokuyo(obj.vrep, obj.h, obj.vrep.simx_opmode_buffer);
+				cart = [double(pts(1, cts)); double(pts(2, cts))].';
+				scan = lidarScan(cart);
+				obj.prevScan = scan;
+
 				obj.initPos = mapDimensions;
 			end
 
@@ -100,16 +150,106 @@ classdef RobotController < handle
 			%
 			% The update depends on the difficulty (i.e. the milestone).
 
-			% Position
+			%%%%%%%%%%%%
+			% Position %
+			%%%%%%%%%%%%
+
 			if strcmp(difficulty, 'easy')
 				obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
 			else
-				obj.absPos = obj.initPos;
+
+				%%%%%%%%%%%%
+				% Odometry %
+				%%%%%%%%%%%%
+
+				% Get angular positions of the wheels
+				[~, y1] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(1), obj.vrep.simx_opmode_buffer);
+				[~, y2] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(2), obj.vrep.simx_opmode_buffer);
+				[~, y3] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(3), obj.vrep.simx_opmode_buffer);
+				[~, y4] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(4), obj.vrep.simx_opmode_buffer);
+
+				% If first entry in the loop
+				if isnan(obj.prevy1)
+					obj.prevy1 = y1;
+					obj.prevy2 = y2;
+					obj.prevy3 = y3;
+					obj.prevy4 = y4;
+				end
+
+				% Angular difference in the time considered
+				dw = [y1 - obj.prevy1, y2 - obj.prevy2, y3 - obj.prevy3, y4 - obj.prevy4];
+				dw = wrapToPi(dw);
+
+				% Angular speeds -> displacement
+				fb = - (1 / 4) * (sum(dw)) * 0.05;
+				rot = (1 / 4) * (dw(1) + dw(2) - dw(3) - dw(4)) * 0.1274852; % Determined experimentally
+
+				% Linear speeds
+				dt = 0.05;
+				fb = fb / dt;
+				rot = rot / dt;
+
+				if isnan(fb)
+					fb = 0;
+				end
+
+				% Use equations to determine pose. Theta is the angle of the robot (Euler3)
+				if abs(rot) > 10e-4
+					obj.posX = obj.posX - fb/rot * sin(obj.theta) + fb/rot * sin(obj.theta + rot * dt);
+					obj.posY = obj.posY + fb/rot * cos(obj.theta) - fb/rot * cos(obj.theta + rot * dt);
+					obj.theta = obj.theta + rot * dt; % Available as Euler(3) at any time for b), to estimate for c)
+				else
+					% No change in orientation.
+					obj.posX = obj.posX + fb * sin(obj.theta);
+					obj.posY = obj.posY + fb * cos(obj.theta);
+				end
+
+				obj.prevy1 = y1;
+				obj.prevy2 = y2;
+				obj.prevy3 = y3;
+				obj.prevy4 = y4;
+
+				%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+				% Scan matching, every x iterations %
+				%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+				if obj.it == obj.ctr
+
+					% Obtain points from the Hokuyo and create a lidar object
+					[pts, cts] = youbot_hokuyo(obj.vrep, obj.h, obj.vrep.simx_opmode_buffer);
+					cart = [double(pts(1,cts)); double(pts(2,cts))].';
+					scan = lidarScan(cart);
+
+					% Compute pose. First two values are x and y, last one is orientation
+					pose = matchScans(scan, obj.prevScan);
+					obj.pX = obj.pX + pose(1);
+					obj.pY = obj.pY + pose(2);
+					obj.or = obj.or + pose(3);
+
+					% Step to combine the two values obtained via odometry and scan matching
+
+					% Maybe create a condition if scan matching is really dysfunctional in a given case
+					obj.posX = 0.8*obj.posX + 0.2*obj.pX;
+					obj.posY = 0.8*obj.posY + 0.2*obj.pY;
+					obj.theta = 0.8*obj.theta + 0.2*obj.or;
+					obj.pX = obj.posX;
+					obj.pY = obj.posY;
+					obj.or = obj.theta;
+
+					obj.prevScan = scan;
+				end
+
+				% Update position
+				obj.absPos = [obj.posX, obj.posY];
+				obj.it = mod(obj.it + 1, 1000);
 			end
 
-			% Orientation
+			%%%%%%%%%%%%%%%
+			% Orientation %
+			%%%%%%%%%%%%%%%
+
 			if strcmp(difficulty, 'hard')
-				obj.orientation = pi;
+				obj.orientation = pi; % TO DO for SLAM
 			else
 				obj.orientation = obj.getOrientationFromSensor();
 			end

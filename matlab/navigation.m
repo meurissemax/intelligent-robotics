@@ -16,7 +16,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 	% Set the position of the robot and his neighborhood
 	% (radius of 2) to 0 (free position)
-	map.setNeighborhood(robot.absPos, 2, 0);
+	map.setNeighborhood(robot.absPos, 2, 0, difficulty);
 
 	% Initialize the path and the objective of the robot
 	pathList = [];
@@ -59,8 +59,8 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		robot.updateDataFromHokuyo();
 
 		% Update the map with data from Hokuyo
-		map.setPoints(robot.inValue, 0);
-		map.setPoints(robot.inPts, 1);
+		map.setPoints(robot.inValue, 0, difficulty);
+		map.setPoints(robot.inPts, 1, difficulty);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

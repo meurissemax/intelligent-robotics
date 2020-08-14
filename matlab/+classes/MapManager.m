@@ -77,30 +77,33 @@ classdef MapManager < handle
 			occMat = occupancyMatrix(obj.map, 'ternary');
 		end
 
-		function setPoints(obj, points, value)
+		function setPoints(obj, points, value, difficulty)
 			% Assign a value 'value' to some points 'points' of the
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
 			%
-			% Only assign free position to points that are not walls.
-			% This verification is useful because the Hokuyo is not
-			% always reliable for the point detection.
+			% If we have access to GPS each iteration, only assign
+			% free position to points that are not walls. This verification
+			% is useful because the Hokuyo is not always reliable for
+			% the point detection.
 
 			if value == 0
-				occVal = getOccupancy(obj.map, points);
-				points = points(occVal < 0.9, :);
+				if strcmp(difficulty, 'easy')
+					occVal = getOccupancy(obj.map, points);
+					points = points(occVal < 0.9, :);
+				end
 			end
 
 			setOccupancy(obj.map, points, value);
 		end
 
-		function setNeighborhood(obj, point, radius, value)
+		function setNeighborhood(obj, point, radius, value, difficulty)
 			% Assign a value 'value' to a point 'point' and his
 			% neighborhood (of radius 'radius' in the occupancy map) in
 			% the occupancy map.
 
 			% Set the point itself
-			obj.setPoints(point, value);
+			obj.setPoints(point, value, difficulty);
 
 			% Get the limits of the map (to be sure to not exceed it)
 			xLimits = obj.map.XWorldLimits;
@@ -112,7 +115,7 @@ classdef MapManager < handle
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
 					if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= point(1) || y ~= point(2))
-						obj.setPoints([x, y], value);
+						obj.setPoints([x, y], value, difficulty);
 					end
 				end
 			end
