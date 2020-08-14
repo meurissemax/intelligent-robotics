@@ -25,6 +25,11 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 	% Initialize the flag for the objective
 	hasAccCurrentObj = true;
 
+	% Initialize counter for the map rendering (map will
+	% refresh each 'mapRefresh' iterations)
+	mapCounter = 0;
+	mapRefresh = 100;
+
 
 	%%%%%%%%%%%%%%%
 	%% Main loop %%
@@ -172,7 +177,14 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		%% Show the map and its components %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		map.show(round(robot.absPos .* map.mapPrec), [pathList; mapObjective], [robot.inPts; robot.inValue]);
+		% Only refresh the map each 'mapRefresh' iteration (because it
+		% is very heavy to render the map each iteration).
+
+		if mod(mapCounter, mapRefresh) == 0
+			map.show(round(robot.absPos .* map.mapPrec), [pathList; mapObjective], [robot.inPts; robot.inValue]);
+		end
+
+		mapCounter = mapCounter + 1;
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
