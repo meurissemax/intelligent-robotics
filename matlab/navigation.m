@@ -63,21 +63,21 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		map.setPoints(robot.inPts, 1);
 
 
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-		%% Check if robot is stuck %%
-		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%% Check if robot is near an obstacle %%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		[stuck, stuckObjective] = robot.checkIfStuck();
+		% If the robot is to close to an obstacle, stop it
+		% and reset the path and objective (in order to re
+		% define new ones and save the robot).
 
-		% If robot is stucked, reset the path and move the robot to
-		% 'stuckObjective' in order to save it. A new path will be
-		% defined at next iteration.
+		if robot.isNearObstacle()
+			robot.stop();
 
-		if stuck
 			pathList = [];
-			objective = stuckObjective;
+			objective = [];
 
-			hasAccCurrentObj = false;
+			hasAccCurrentObj = true;
 		end
 
 
@@ -167,7 +167,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 		% If robot has not accomplished its objective, we move it
 		if ~hasAccCurrentObj
-			robot.move(objective, stuck);
+			robot.move(objective, false);
 		end
 
 

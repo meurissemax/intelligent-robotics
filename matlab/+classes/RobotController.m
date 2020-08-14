@@ -40,15 +40,14 @@ classdef RobotController < handle
 
 		% Velocity multipliers
 		forwBackVelFact = 5;
-		rotVelFact = 2;
+		rotVelFact = 1.8;
 
 		% Movements tolerances
-		movPrecision = 0.2;
+		movPrecision = 0.25;
 		rotPrecision = 0.01;
 
-		% Parameters when the robot is stuck
-		stuckTresh = 0.6;
-		stuckDist = 0.6;
+		% Parameter when the robot is near an obstacle
+		nearTresh = 0.5;
 	end
 
 
@@ -142,17 +141,20 @@ classdef RobotController < handle
 			obj.inPts = transpose([obj.inPts(1, :); obj.inPts(2, :)]);
 		end
 
-		function [stuck, objective] = checkIfStuck(obj)
-			% Check if the robot is stucked (to close to a wall). If the
-			% robot is stucked, the return value 'stuck' will be set to
-			% 'true' and the 'objective' will be the position where the
-			% robot has to go to unstuck it.
+		function near = isNearObstacle(obj)
+			% Check if the robot is to close to an obstacle. If it
+			% is the case, the return value 'near' will be set to
+			% 'true'.
 
-			% By default, the robot is not stuck
-			stuck = false;
-			objective = [];
+			% By default, the robot is not near an obstacle
+			near = false;
 
-			% Distance to the some elements in front of the robot
+			% If robot don't move (forward or backward), don't check
+			if obj.forwBackVel == 0
+				return;
+			end
+
+			% Distance to some elements in front of the robot
 			inFrontPts = [0.25, 0.5, 0.75];
 			distFront = zeros(1, numel(inFrontPts));
 
@@ -161,36 +163,9 @@ classdef RobotController < handle
 				distFront(i) = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
 			end
 
-			% If robot is too close to something
-			if sum(distFront < obj.stuckTresh) > 0
-
-				% Get the orientation
-				distAngl = [
-					abs(angdiff(obj.orientation(3), pi / 2)), ...
-					abs(angdiff(obj.orientation(3), -pi / 2)), ...
-					abs(angdiff(obj.orientation(3), 0)), ...
-					abs(angdiff(obj.orientation(3), pi))
-				];
-
-				minDistAngl = min(distAngl);
-
-				% Get the direction where the robot should backward
-				dx = 0;
-				dy = 0;
-
-				if minDistAngl == distAngl(1)
-					dx = -obj.stuckDist;
-				elseif minDistAngl == distAngl(2)
-					dx = obj.stuckDist;
-				elseif minDistAngl == distAngl(3)
-					dy = obj.stuckDist;
-				else
-					dy = -obj.stuckDist;
-				end
-
-				% Define the objective to save the robot
-				stuck = true;
-				objective = [obj.absPos(1) + dx, obj.absPos(2) + dy];
+			% Check if robot is too close to something
+			if sum(distFront < obj.nearTresh) > 0
+				near = true;
 			end
 		end
 
