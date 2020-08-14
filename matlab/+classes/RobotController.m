@@ -143,7 +143,7 @@ classdef RobotController < handle
 		end
 
 		function [stuck, objective] = checkIfStuck(obj)
-			% Check if the robot is stucked (in front of a wall). If the
+			% Check if the robot is stucked (to close to a wall). If the
 			% robot is stucked, the return value 'stuck' will be set to
 			% 'true' and the 'objective' will be the position where the
 			% robot has to go to unstuck it.
@@ -152,12 +152,17 @@ classdef RobotController < handle
 			stuck = false;
 			objective = [];
 
-			% Distance to the nearest element in front of the robot
-			inFront = round(size(obj.inPts, 1) / 2);
-			distFront = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
+			% Distance to the some elements in front of the robot
+			inFrontPts = [0.25, 0.5, 0.75];
+			distFront = zeros(1, numel(inFrontPts));
+
+			for i = 1:numel(inFrontPts)
+				inFront = round(size(obj.inPts, 1) * inFrontPts(i));
+				distFront(i) = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
+			end
 
 			% If robot is too close to something
-			if distFront < obj.stuckTresh
+			if sum(distFront < obj.stuckTresh) > 0
 
 				% Get the orientation
 				distAngl = [
