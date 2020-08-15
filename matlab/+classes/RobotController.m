@@ -358,14 +358,14 @@ classdef RobotController < handle
 			rotation = obj.rotVelFact * angdiff(rotAngl, obj.orientation(3));
 
 			% We set velocities of the robot according to its objective
-			if distObjRot > 0.7
+			if distObjRot > pi / 6
 				obj.rotVel = rotation;
-			elseif distObjRot > 0.35
-				obj.forwBackVel = forward / 4;
-				obj.rotVel = rotation / 1.5;
-			elseif distObjRot > 0.01
+			elseif distObjRot > pi / 8
+				obj.rotVel = rotation;
 				obj.forwBackVel = forward / 2;
-				obj.rotVel = rotation / 3;
+			elseif distObjRot > pi / 18
+				obj.rotVel = rotation / 2;
+				obj.forwBackVel = forward;
 			else
 				obj.forwBackVel = forward;
 			end

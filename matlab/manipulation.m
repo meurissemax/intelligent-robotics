@@ -60,8 +60,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	map.findTables();
 
 	% Initialize current table for analysis
-	if isempty(map.tablesRadius)
-		fprintf('No table found, manipulation will stop here.\n');
+	if numel(map.tablesRadius) < 2
+		fprintf('Not enough table found, manipulation will stop here.\n');
 
 		return;
 	else
@@ -101,6 +101,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		robot.updatePositionAndOrientation(navigationDifficulty);
 
 
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		%% Update data from Hokuyo %%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+		robot.updateDataFromHokuyo();
+
+
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
 		%% Finite state machine %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -130,6 +137,19 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%%%%%%%%%%%%%%%%
 
 		if strcmp(state, 'goto')
+
+			% If the robot is to close to an obstacle, stop it
+			% and reset the path and objective (in order to re
+			% define new ones and save the robot).
+
+			if robot.isNearObstacle()
+				robot.stop();
+
+				pathList = [];
+				objective = [];
+
+				hasAccCurrentObj = true;
+			end
 
 			% Check if robot is currently doing an objective
 			if hasAccCurrentObj
@@ -273,6 +293,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 		elseif strcmp(state, 'objects')
 
+			% If no table with objects has been found, stop the manipulation
+			if ~exist('tableObjectsPos', 'var')
+				fprintf('No table with objects found, manipulation will stop here.\n');
+
+				return;
+			end
+
 			% Check if robot is already near the objects table
 			if robot.checkObjective(tableObjectsPos)
 
@@ -312,6 +339,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%%%%%%%%%%%%%%%%%%%%%
 
 		elseif strcmp(state, 'objective')
+
+			% If no empty table has been found, stop the manipulation
+			if ~exist('tableObjectivePos', 'var')
+				fprintf('No empty table found, manipulation will stop here.\n');
+
+				return;
+			end
 
 			% Check if robot is already near the objective table
 			if robot.checkObjective(tableObjectivePos)
