@@ -149,14 +149,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 						robot.stop();
 
 						% Plan a path to the objective
-						absPos = round(robot.absPos .* map.mapPrec);
-						pathList = map.getNextPathToExplore(absPos, absPos, utils.toMatrix(gotoObjective .* map.mapPrec, map.matrixWidth));
+						pathList = map.getNextPathToExplore(robot.absPos, robot.absPos, gotoObjective);
 					end
 				else
 
 					% Get the next objective
-					objective = utils.toCartesian(pathList(end, :), map.matrixWidth);
-					objective = objective ./ map.mapPrec;
+					objective = map.matrixToMap(pathList(end, :));
 
 					% Remove the next objective from the path
 					pathList(end, :) = [];
@@ -206,15 +204,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			else
 
 				% Get the position of the current table
-				currentTablePos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
-				currentTablePos = utils.toCartesian(currentTablePos, map.matrixWidth);
-				currentTablePos = currentTablePos ./ map.mapPrec;
+				currentTablePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
 
 				% Check if the robot is already near the current table
 				if robot.checkObjective(currentTablePos)
 
 					% Update state
-					currentTableAngle = robot.getAngleTo(currentTablePos);
+					currentTableAngle = robot.getAngleTo(map.matrixToMap(map.tablesCenterPositions(currentTable, :)));
 					state = 'analyze';
 				else
 
@@ -252,13 +248,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Update manipulation local variables
 				if tableType == 1
-					tableObjectivePos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
-					tableObjectivePos = utils.toCartesian(tableObjectivePos, map.matrixWidth);
-					tableObjectivePos = tableObjectivePos ./ map.mapPrec;
+					tableObjectivePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
 				elseif tableType == tableDifficulty
-					tableObjectsPos = map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable);
-					tableObjectsPos = utils.toCartesian(tableObjectsPos, map.matrixWidth);
-					tableObjectsPos = tableObjectsPos ./ map.mapPrec;
+					tableObjectsPos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
 				end
 
 				% Display information

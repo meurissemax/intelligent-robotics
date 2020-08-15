@@ -10,15 +10,15 @@ classdef RobotController < handle
 
 	properties (Access = public)
 		% Absolute position of the robot (occupancy
-		% map coordinate system)
+		% map coordinate system, cartesian)
 		absPos
 
 		% Orientation of the robot
-		orientation;
+		orientation
 
 		% Data from Hokuyo
-		inPts;
-		inValue;
+		inPts
+		inValue
 	end
 
 	properties (Access = private)
@@ -82,7 +82,7 @@ classdef RobotController < handle
 		pY = NaN; % To give a value sometime
 		or = NaN;
 
-		prevScan;
+		prevScan
 	end
 
 

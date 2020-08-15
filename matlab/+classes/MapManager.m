@@ -130,6 +130,10 @@ classdef MapManager < handle
 			% this case, the function will simply determine path to this
 			% point.
 
+			% Transform points to have matrix coordinates
+			pos = round(pos .* obj.mapPrec);
+			from = round(from .* obj.mapPrec);
+
 			% Inflate the occupancy matrix
 			mapInflated = copy(obj.map);
 			inflate(mapInflated, obj.inflatedFact);
@@ -138,8 +142,10 @@ classdef MapManager < handle
 			% Get next point to explore
 			if nargin > 3
 				nextPoint = varargin{1};
+				nextPoint = round(nextPoint .* obj.mapPrec);
+				nextPoint = utils.toMatrix(nextPoint, obj.matrixWidth);
 			else
-				nextPoint = obj.getNextPointToExplore([obj.matrixWidth - from(2) + 1, from(1)], occMatInf);
+				nextPoint = obj.getNextPointToExplore(utils.toMatrix(from, obj.matrixWidth), occMatInf);
 
 				% If we can not find new point, the map is probably explored
 				if nextPoint == Inf
@@ -150,7 +156,7 @@ classdef MapManager < handle
 			end
 
 			% Get the path to this point
-			startPoint = [obj.matrixWidth - pos(2) + 1, pos(1)];
+			startPoint = utils.toMatrix(pos, obj.matrixWidth);
 			stopPoint = [nextPoint(1), nextPoint(2)];
 
 			goalPoint = zeros([obj.matrixWidth, obj.matrixHeight]);
@@ -294,6 +300,7 @@ classdef MapManager < handle
 			% Position of the robot
 			if nargin > 1
 				pos = varargin{1};
+				pos = round(pos .* obj.mapPrec);
 
 				plot(pos(1), pos(2), '.k', 'MarkerSize', 20);
 				hold on;
@@ -370,6 +377,18 @@ classdef MapManager < handle
 
 			obj.matrixWidth = obj.mapWidth * 2 * obj.mapPrec;
 			obj.matrixHeight = obj.mapHeight * 2 * obj.mapPrec;
+		end
+
+		function mapPoint = matrixToMap(obj, matrixPoint)
+			% Convert a point with coordinates of a matrix (in
+			% matrix convention) to a point with occupancy map
+			% coordinates (cartesian convention).
+
+			% To cartesian
+			mapPoint = utils.toCartesian(matrixPoint, obj.matrixWidth);
+
+			% To occupancy map coordinates
+			mapPoint = mapPoint ./ obj.mapPrec;
 		end
 	end
 

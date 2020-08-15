@@ -125,10 +125,10 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 					% We get the point from which we determine new path
 					% (front point of the Hokuyo)
 					inFront = round(size(robot.inPts, 1) / 2);
-					from = round(robot.inPts(inFront, :) .* map.mapPrec);
+					from = robot.inPts(inFront, :);
 
 					% We determine the new path
-					pathList = map.getNextPathToExplore(round(robot.absPos .* map.mapPrec), from);
+					pathList = map.getNextPathToExplore(robot.absPos, from);
 
 					% If we can not find a new path, the map has been probably
 					% fully explored
@@ -150,8 +150,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 			mapObjective = pathList(end, :);
 
 			% Get the next objective
-			objective = utils.toCartesian(pathList(end, :), map.matrixWidth);
-			objective = objective ./ map.mapPrec;
+			objective = map.matrixToMap(pathList(end, :));
 
 			% Remove the next objective from the path
 			pathList(end, :) = [];
@@ -179,7 +178,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		% is very heavy to render the map each iteration).
 
 		if mod(mapCounter, mapRefresh) == 0
-			map.show(round(robot.absPos .* map.mapPrec), [pathList; mapObjective], [robot.inPts; robot.inValue]);
+			map.show(robot.absPos, [pathList; mapObjective], [robot.inPts; robot.inValue]);
 		end
 
 		mapCounter = mapCounter + 1;
