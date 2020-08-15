@@ -36,6 +36,7 @@ classdef RobotController < handle
 
 		% Parameters for controlling the robot's wheels
 		forwBackVel = 0;
+		leftRightVel = 0;
 		rotVel = 0;
 
 		% Velocity multipliers
@@ -352,6 +353,7 @@ classdef RobotController < handle
 
 			% We define default values
 			obj.forwBackVel = 0;
+			obj.leftRightVel = 0;
 			obj.rotVel = 0;
 
 			forward = -obj.forwBackVelFact * sum(distObjPos);
@@ -380,6 +382,7 @@ classdef RobotController < handle
 
 			% We set velocities
 			obj.forwBackVel = 0;
+			obj.leftRightVel = 0;
 			obj.rotVel = obj.rotVelFact * angdiff(objective, obj.orientation(3)) / 2;
 
 			% We drive the robot
@@ -391,10 +394,42 @@ classdef RobotController < handle
 
 			% We set all velocities to 0
 			obj.forwBackVel = 0;
+			obj.leftRightVel = 0;
 			obj.rotVel = 0;
 
 			% We drive the robot
 			while obj.h.previousForwBackVel ~= 0 || obj.h.previousRotVel ~=0
+				obj.drive();
+			end
+		end
+
+		function near = slide(obj, direction)
+			% Slide the robot left or right (depends on 'direction'
+			% value) until the robot is near an obstacle. It returns
+			% a flag that indicates if robot is near to the obstacle.
+
+			% By default, robot is not near the obstacle
+			near = false;
+
+			% Distance to some elements at 'direction'
+			if strcmp(direction, 'left')
+				inFrontPts = 0.2;
+			else
+				inFrontPts = 0.8;
+			end
+
+			inFront = round(size(obj.inPts, 1) * inFrontPts);
+			distFront = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
+
+			% Set velocities of the robot
+			obj.forwBackVel = 0;
+			obj.leftRightVel = 1;
+			obj.rotVel = 0;
+
+			% Check if robot is too close to something
+			if distFront < 0.2
+				near = true;
+			else
 				obj.drive();
 			end
 		end
@@ -510,12 +545,8 @@ classdef RobotController < handle
 
 		function drive(obj)
 			% Use the defined velocities of the robot to move it.
-			%
-			% Remark : left-right velocity has been set to 0 because
-			% we decided to not use it since it is very difficult
-			% to apply SLAM techniques with such displacements.
 
-			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, 0, obj.rotVel);
+			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, obj.leftRightVel, obj.rotVel);
 		end
 	end
 end

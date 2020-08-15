@@ -48,6 +48,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Initialize variables for 'analyze' state
 	displayTypes = {'empty', 'easy', 'hard'};
 
+	% Initialize variable for 'grasp' state
+	pointsAround = [];
+	graspInProgress = false;
+	currentPoint = [];
+
 
 	%%%%%%%%%%%%%%%%%%%%%%
 	%% Tables detection %%
@@ -170,6 +175,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 						% Plan a path to the objective
 						pathList = map.getNextPathToExplore(robot.absPos, robot.absPos, gotoObjective);
+
+						% If no path has been found, stop the manipulation
+						if pathList(1) == Inf
+							fprintf('Unable to find a path to objective, manipulation will stop here.\n');
+
+							return;
+						end
 					end
 				else
 
@@ -268,9 +280,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Update manipulation local variables
 				if tableType == 1
-					tableObjectivePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
+					tableObjectivePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :));
+					tableObjectiveRadius = map.tablesRadius(currentTable) / map.mapPrec;
 				elseif tableType == tableDifficulty
-					tableObjectsPos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
+					tableObjectsPos = map.matrixToMap(map.tablesCenterPositions(currentTable, :));
+					tableObjectsRadius = map.tablesRadius(currentTable) / map.mapPrec;
 				end
 
 				% Display information
@@ -301,15 +315,18 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			end
 
 			% Check if robot is already near the objects table
-			if robot.checkObjective(tableObjectsPos)
+			if robot.checkObjective(tableObjectsPos + tableObjectiveRadius)
 
 				% Update state
 				state = 'grasp';
+
+				% Display information
+				fprintf('Try to grasp an object...\n');
 			else
 
 				% Bring the robot to the object table
 				previousState = state;
-				gotoObjective = tableObjectsPos;
+				gotoObjective = tableObjectsPos + tableObjectiveRadius;
 				state = 'goto';
 
 				% Display information
@@ -322,17 +339,109 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 		elseif strcmp(state, 'grasp')
 
-			% Display information
-			fprintf('Grasping an object...\n');
-
 			% Stop the robot
 			robot.stop();
 
-			% Grasp an object
-			robot.graspObject();
+			% We check if the 'pointsAround' array is empty.
+			% If yes, either there is no objects or we need to
+			% generate the points.
+			% If no, robot has still job to do !
 
-			% Update state of the robot
-			state = 'objective';
+			if isempty(pointsAround)
+
+				% Check if points was previously generated
+				if graspInProgress
+
+					% No object found, manipulation is done
+					fprintf('No (more) object on the table, manipulation is finished !\n');
+
+					break;
+				else
+
+					% Generate points around table
+					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8);
+
+					% Update the flag
+					graspInProgress = true;
+				end
+			else
+
+				% Check if there is a current point
+				if isempty(currentPoint)
+
+					% Assign a point
+					currentPoint = pointsAround(end, :);
+
+					% Pop the point
+					pointsAround(end, :) = [];
+				end
+
+				% Check if robot is located on the current point
+				if robot.checkObjective(currentPoint)
+
+					% Get angle to be aligned with the table
+					tableObjectsAngle = robot.getAngleTo(tableObjectsPos);
+
+					% Check if robot is aligned with the table
+					if robot.checkObjective(tableObjectsAngle)
+
+						% Get angle for a quarter turn
+						quarterAngle = robot.orientation + pi / 2;
+
+						% Check if robot has done the quarter turn
+						if robot.checkObjective(quarterAngle)
+
+							% Slide robot to the left until it is near the table
+							if robot.slide('left')
+
+								% Stop the robot
+								robot.stop();
+
+								%{
+								% Take a 3D point cloud and analyze it
+								pointCloud = robot.take3DPointCloud();
+								objectPos = robot.analyzeObjects();
+								%}
+
+								% If there is no object
+								disp('3D POINT CLOUD AND ANALYZE IT');
+								currentPoint = [];
+
+								%{
+								% If there is object
+								robot.graspObject();
+
+								% Reset the data
+								pointsAround = [];
+								graspInProgress = false;
+								currentPoint = [];
+
+								% Update state
+								state = 'objective';
+								%}
+							end
+						else
+
+							% Update state
+							previousState = state;
+							rotateObjective = quarterAngle;
+							state = 'rotate';
+						end
+					else
+
+						% Update state
+						previousState = state;
+						rotateObjective = tableObjectsAngle;
+						state = 'rotate';
+					end
+				else
+
+					% Update state
+					previousState = state;
+					gotoObjective = currentPoint;
+					state = 'goto';
+				end
+			end
 
 		%%%%%%%%%%%%%%%%%%%%%
 		% 'objective' state %
@@ -348,7 +457,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			end
 
 			% Check if robot is already near the objective table
-			if robot.checkObjective(tableObjectivePos)
+			if robot.checkObjective(tableObjectivePos + tableObjectiveRadius)
 
 				% Update state
 				state = 'drop';
@@ -356,7 +465,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Bring the robot to the objective table
 				previousState = state;
-				gotoObjective = tableObjectivePos;
+				gotoObjective = tableObjectivePos + tableObjectiveRadius;
 				state = 'goto';
 
 				% Display information

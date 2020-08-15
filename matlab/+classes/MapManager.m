@@ -182,7 +182,11 @@ classdef MapManager < handle
 
 			while pathList(1) == Inf
 				mapInflated = copy(obj.map);
-				inflate(mapInflated, reduceInflate);
+
+				if reduceInflate > 0
+					inflate(mapInflated, reduceInflate);
+				end
+
 				occMatInf = occupancyMatrix(mapInflated, 'ternary');
 
 				pathList = imported.astar(startPoint(2), startPoint(1), occMatInf, goalPoint, obj.pathDist);
@@ -191,7 +195,7 @@ classdef MapManager < handle
 
 				% If inflate factor reach 0, not path is possible so return
 				% an empty path
-				if reduceInflate <= 0
+				if reduceInflate < 0
 					nextPath = Inf;
 
 					return;
