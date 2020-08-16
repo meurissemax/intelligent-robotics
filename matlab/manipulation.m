@@ -333,9 +333,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				fprintf('Go to the objects table.\n');
 			end
 
-		%%%%%%%%%%%%%%%%%
-		% 'grasp' state %
-		%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		% 'grasp' state and substates %
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		elseif strcmp(state, 'grasp')
 
@@ -359,7 +359,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				else
 
 					% Generate points around table
-					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8);
+					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8, map.mapPrec);
 
 					% Update the flag
 					graspInProgress = true;
@@ -379,61 +379,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				% Check if robot is located on the current point
 				if robot.checkObjective(currentPoint)
 
-					% Get angle to be aligned with the table
-					tableObjectsAngle = robot.getAngleTo(tableObjectsPos);
-
-					% Check if robot is aligned with the table
-					if robot.checkObjective(tableObjectsAngle)
-
-						% Get angle for a quarter turn
-						quarterAngle = robot.orientation + pi / 2;
-
-						% Check if robot has done the quarter turn
-						if robot.checkObjective(quarterAngle)
-
-							% Slide robot to the left until it is near the table
-							if robot.slide('left')
-
-								% Stop the robot
-								robot.stop();
-
-								%{
-								% Take a 3D point cloud and analyze it
-								pointCloud = robot.take3DPointCloud();
-								objectPos = robot.analyzeObjects();
-								%}
-
-								% If there is no object
-								disp('3D POINT CLOUD AND ANALYZE IT');
-								currentPoint = [];
-
-								%{
-								% If there is object
-								robot.graspObject();
-
-								% Reset the data
-								pointsAround = [];
-								graspInProgress = false;
-								currentPoint = [];
-
-								% Update state
-								state = 'objective';
-								%}
-							end
-						else
-
-							% Update state
-							previousState = state;
-							rotateObjective = quarterAngle;
-							state = 'rotate';
-						end
-					else
-
-						% Update state
-						previousState = state;
-						rotateObjective = tableObjectsAngle;
-						state = 'rotate';
-					end
+					% Update state
+					state = 'grasp-align';
 				else
 
 					% Update state
@@ -442,6 +389,97 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 					state = 'goto';
 				end
 			end
+
+		elseif strcmp(state, 'grasp-align')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle to be aligned with the table
+			tableObjectsAngle = robot.getAngleTo(tableObjectsPos);
+
+			% Check if robot is aligned with the table
+			if robot.checkObjective(tableObjectsAngle)
+
+				% Update state
+				state = 'grasp-quarter';
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = tableObjectsAngle;
+				state = 'rotate';
+			end
+
+		elseif strcmp(state, 'grasp-quarter')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle for a quarter turn
+			if ~quarterTable
+				quarterAngle = robot.orientation(3) - pi / 2;
+				quarterTable = true;
+			end
+
+			% Check if robot has done the quarter turn
+			if robot.checkObjective(quarterAngle)
+
+				% Reset flag
+				quarterTable = false;
+
+				% Update state
+				state = 'grasp-slide';
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = quarterAngle;
+				state = 'rotate';
+			end
+
+		elseif strcmp(state, 'grasp-slide')
+
+			% Slide robot to the left until it is near the table
+			if robot.slide('left')
+
+				% Update state
+				state = 'grasp-grasp';
+			end
+
+		elseif strcmp(state, 'grasp-grasp')
+
+			% Stop the robot
+			robot.stop();
+
+			% Take a 3D point cloud and analyze it
+			disp('3D POINT CLOUD AND ANALYZE IT');
+			%{
+			pointCloud = robot.take3DPointCloud();
+			objectPos = robot.analyzeObjects();
+			%}
+			objectPos = [];
+
+			% Check if there is graspable object
+			if isempty(objectPos)
+
+				% Update state
+				state = 'grasp';
+			else
+
+				% Grasp the object
+				robot.graspObject();
+
+				% Reset the data
+				pointsAround = [];
+				graspInProgress = false;
+
+				% Update state
+				state = 'objective';
+			end
+
+			% Reset the current point
+			currentPoint = [];
 
 		%%%%%%%%%%%%%%%%%%%%%
 		% 'objective' state %

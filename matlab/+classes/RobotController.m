@@ -250,7 +250,7 @@ classdef RobotController < handle
 			%%%%%%%%%%%%%%%
 
 			if strcmp(difficulty, 'hard')
-				obj.orientation = pi; % TO DO for SLAM
+				obj.orientation = [pi, pi, pi]; % TO DO for SLAM
 			else
 				obj.orientation = obj.getOrientationFromSensor();
 			end
@@ -472,7 +472,7 @@ classdef RobotController < handle
 			p_purple = numel(x_purple) / imsize;
 
 			% Decide type of the table based on proportions
-			if p_red > 0.01
+			if p_red > 0.008
 				tableType = 2;
 			elseif p_purple > 0.002
 				tableType = 3;
