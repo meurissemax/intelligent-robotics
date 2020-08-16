@@ -174,6 +174,15 @@ classdef MapManager < handle
 				end
 			end
 
+			% Set neighborhood of stop point to 0 (to be sure that A* can begin)
+			for x = stopPoint(1) - 1:1:stopPoint(1) + 1
+				for y = stopPoint(2) - 1:1:stopPoint(2) + 1
+					if x >= 1 && y >= 1 && x <= obj.matrixWidth && y <= obj.matrixHeight && (x ~= stopPoint(1) || y ~= stopPoint(2))
+						occMatInf(x, y) = 0;
+					end
+				end
+			end
+
 			% Calculate the path with A*
 			pathList = imported.astar(startPoint(2), startPoint(1), occMatInf, goalPoint, obj.pathDist);
 

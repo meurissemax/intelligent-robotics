@@ -52,6 +52,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	pointsAround = [];
 	graspInProgress = false;
 	currentPoint = [];
+	quarterTable = false;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%
@@ -441,7 +442,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'grasp-slide')
 
 			% Slide robot to the left until it is near the table
-			if robot.slide('left')
+			if robot.slide('left', 'in')
 
 				% Update state
 				state = 'grasp-grasp';
@@ -461,11 +462,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			objectPos = [];
 
 			% Check if there is graspable object
-			if isempty(objectPos)
-
-				% Update state
-				state = 'grasp';
-			else
+			if ~isempty(objectPos)
 
 				% Grasp the object
 				robot.graspObject();
@@ -473,13 +470,26 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				% Reset the data
 				pointsAround = [];
 				graspInProgress = false;
-
-				% Update state
-				state = 'objective';
 			end
+
+			% Update the state
+			state = 'grasp-back';
 
 			% Reset the current point
 			currentPoint = [];
+
+		elseif strcmp(state, 'grasp-back')
+
+			% Slide robot to the right until it has space to move
+			if robot.slide('right', 'out')
+
+				% Update state according to previous state
+				if isempty(objectPos)
+					state = 'grasp';
+				else
+					state = 'objective';
+				end
+			end
 
 		%%%%%%%%%%%%%%%%%%%%%
 		% 'objective' state %

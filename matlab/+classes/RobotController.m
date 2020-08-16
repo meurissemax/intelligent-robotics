@@ -398,36 +398,62 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% We drive the robot
-			while obj.h.previousForwBackVel ~= 0 || obj.h.previousRotVel ~=0
+			while obj.h.previousForwBackVel ~= 0 || obj.h.previousLeftRightVel ~= 0 || obj.h.previousRotVel ~=0
 				obj.drive();
 			end
 		end
 
-		function near = slide(obj, direction)
+		function near = slide(obj, direction, action)
 			% Slide the robot left or right (depends on 'direction'
 			% value) until the robot is near an obstacle. It returns
 			% a flag that indicates if robot is near to the obstacle.
+			%
+			% An additional parameter, 'action' is used to set if the
+			% robot has to bond ('in') or to walk away ('out').
 
 			% By default, robot is not near the obstacle
 			near = false;
 
-			% Distance to some elements at 'direction'
+			% Get point of Hokuyo to check
+			rayID = 5;
+
 			if strcmp(direction, 'left')
-				inFrontPts = 0.2;
+				if strcmp(action, 'in')
+					distPts = size(obj.inPts, 1) - rayID;
+				else
+					distPts = rayID;
+				end
 			else
-				inFrontPts = 0.8;
+				if strcmp(direction, 'in')
+					distPts = rayID;
+				else
+					distPts = size(obj.inPts, 1) - rayID;
+				end
 			end
 
-			inFront = round(size(obj.inPts, 1) * inFrontPts);
-			distFront = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
+			% Distance to nearest element at 'direction'
+			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
 
 			% Set velocities of the robot
 			obj.forwBackVel = 0;
-			obj.leftRightVel = 1;
+
+			if strcmp(direction, 'left')
+				obj.leftRightVel = 1;
+			else
+				obj.leftRightVel = -1;
+			end
+
 			obj.rotVel = 0;
 
-			% Check if robot is too close to something
-			if distFront < 0.2
+			% Set the condition according to the action
+			if strcmp(action, 'in')
+				condition = distNear < 0.3;
+			else
+				condition = distNear > 0.6;
+			end
+
+			% Check the condition
+			if condition
 				near = true;
 			else
 				obj.drive();
