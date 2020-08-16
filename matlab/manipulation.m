@@ -237,13 +237,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			else
 
 				% Get the position of the current table
-				currentTablePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :) + map.tablesRadius(currentTable));
+				currentTablePos = utils.findClosest(robot.absPos, utils.aroundCircle(map.tablesCenterPos(currentTable, :), map.tablesRadius(currentTable), 10));
 
 				% Check if the robot is already near the current table
 				if robot.checkObjective(currentTablePos)
 
 					% Update state
-					currentTableAngle = robot.getAngleTo(map.matrixToMap(map.tablesCenterPositions(currentTable, :)));
+					currentTableAngle = robot.getAngleTo(map.tablesCenterPos(currentTable, :));
 					state = 'analyze';
 				else
 
@@ -276,16 +276,16 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				img = robot.takePhoto();
 
 				% Determine table type and update data
-				tableType = robot.getTableTypeFromImage(img);
+				tableType = robot.analyzeTable(img);
 				map.tablesType(1, currentTable) = tableType;
 
 				% Update manipulation local variables
 				if tableType == 1
-					tableObjectivePos = map.matrixToMap(map.tablesCenterPositions(currentTable, :));
-					tableObjectiveRadius = map.tablesRadius(currentTable) / map.mapPrec;
+					tableObjectivePos = map.tablesCenterPos(currentTable, :);
+					tableObjectiveRadius = map.tablesRadius(currentTable);
 				elseif tableType == tableDifficulty
-					tableObjectsPos = map.matrixToMap(map.tablesCenterPositions(currentTable, :));
-					tableObjectsRadius = map.tablesRadius(currentTable) / map.mapPrec;
+					tableObjectsPos = map.tablesCenterPos(currentTable, :);
+					tableObjectsRadius = map.tablesRadius(currentTable);
 				end
 
 				% Display information
@@ -327,7 +327,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Bring the robot to the object table
 				previousState = state;
-				gotoObjective = tableObjectsPos + tableObjectiveRadius;
+				gotoObjective = utils.findClosest(robot.absPos, utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 10));
 				state = 'goto';
 
 				% Display information
@@ -360,7 +360,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				else
 
 					% Generate points around table
-					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8, map.mapPrec);
+					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8);
 
 					% Update the flag
 					graspInProgress = true;
@@ -455,7 +455,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 			% Take a 3D point cloud and analyze it
 			pointCloud = robot.take3DPointCloud();
-			objectPos = robot.analyze3DPointCloud(pointCloud);
+			objectPos = robot.analyzeObjects(pointCloud);
 
 			% Check if there is graspable object
 			if ~isempty(objectPos)
@@ -509,7 +509,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Bring the robot to the objective table
 				previousState = state;
-				gotoObjective = tableObjectivePos + tableObjectiveRadius;
+				gotoObjective = utils.findClosest(robot.absPos, utils.aroundCircle(tableObjectivePos, tableObjectiveRadius, 10));
 				state = 'goto';
 
 				% Display information

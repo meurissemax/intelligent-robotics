@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function points = aroundCircle(center, radius, number, prec)
+function points = aroundCircle(center, radius, number)
     % Generate 'number' points equally spaced around a
     % circle centered at 'center' position and with a
     % radius of 'radius'.
@@ -23,8 +23,6 @@ function points = aroundCircle(center, radius, number, prec)
     for i = 1:number
         points(i, 1) = center(1) + radius * cos(ang);
         points(i, 2) = center(2) + radius * sin(ang);
-
-        points(i, :) = round(points(i, :) .* prec) ./ prec;
 
         ang = ang + dx;
     end

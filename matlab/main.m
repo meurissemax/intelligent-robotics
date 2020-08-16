@@ -72,7 +72,7 @@ function main()
 
 	% Map and robot instance
 	map = classes.MapManager(mapWidth, mapHeight, mapPrec);
-	robot = classes.RobotController(vrep, id, h);
+	robot = classes.RobotController(vrep, id, h, mapPrec);
 
 	% Initialize the mesh grid (for the data retrieving
 	% of the Hokuyo)

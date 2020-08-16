@@ -27,6 +27,10 @@ classdef RobotController < handle
 		id
 		h
 
+		% Precision of the map where the robot
+		% will stand
+		mapPrec
+
 		% Initial position of the robot
 		initPos
 
@@ -92,13 +96,15 @@ classdef RobotController < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = RobotController(vrep, id, h)
+		function obj = RobotController(vrep, id, h, mapPrec)
 			% Constructor of the class. It sets the parameters of the
 			% simulator linked to the robot.
 
 			obj.vrep = vrep;
 			obj.id = id;
 			obj.h = h;
+
+			obj.mapPrec = mapPrec;
 		end
 
 		function setInitPos(obj, mapDimensions, difficulty)
@@ -325,6 +331,10 @@ classdef RobotController < handle
 				distObj = abs(angdiff(objective, obj.orientation(3)));
 				hasAccCurrentObj = distObj < obj.rotPrecision;
 			else
+
+				% Small trick to adapt the 'gotoObjective'
+				objective = round(objective .* obj.mapPrec) ./ obj.mapPrec;
+
 				distObj = [abs(obj.absPos(1) - objective(1)), abs(obj.absPos(2) - objective(2))];
 				hasAccCurrentObj = sum(distObj < obj.movPrecision) == numel(distObj);
 			end
@@ -460,33 +470,67 @@ classdef RobotController < handle
 			end
 		end
 
-		function img = takePhoto(obj)
-			% Take a (front) picture with the robot and return
-			% the image.
+		function img = takePhoto(obj, varargin)
+			% Take a picture with the sensor and return it.
+			%
+			% An additional argument can be passed to choose
+			% the orientation of the sensor.
 
 			% Setup the sensor for capturing an image
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_rgb_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
+
+			% Rotate the sensor, if needed
+			if nargin > 1
+				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
+				vrchk(obj.vrep, res);
+
+				pause(2);
+			end
 
 			% Capturing the image
 			[res, ~, img] = obj.vrep.simxGetVisionSensorImage2(obj.id, obj.h.rgbSensor, 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 		end
 
-		function tableType = getTableTypeFromImage(~, img)
-			% Analyze the input image (an image of a table) to
-			% determine its type ('empty', 'easy' or 'hard').
-			% This technique is based on the colors of the
-			% elements of the table.
+		function pointCloud = take3DPointCloud(obj, varargin)
+			% Take a 3D point cloud with the sensor and return it.
+			%
+			% An additional argument can be passed to choose
+			% the orientation of the sensor.
+
+			% Reduce the view angle to pi / 8 in order to better see the objects
+			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 8, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Rotate the sensor, if needed
+			if nargin > 1
+				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
+				vrchk(obj.vrep, res);
+
+				pause(2);
+			end
+
+			% Turn the sensor for point cloud on
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_xyz_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Get the 3D point cloud
+			pointCloud = youbot_xyz_sensor(obj.vrep, obj.h, obj.vrep.simx_opmode_oneshot_wait);
+		end
+
+		function tableType = analyzeTable(~, data)
+			% Analyze the input data to determine the type of the table
+			% ('empty', 'easy' or 'hard').
 
 			% Get colors channel
-			r = img(:, :, 1);
-			g = img(:, :, 2);
-			b = img(:, :, 3);
+			r = data(:, :, 1);
+			g = data(:, :, 2);
+			b = data(:, :, 3);
 
 			% Find specific colors
-			red_pattern = r > 220 & r < 260 & g > 55 & g < 75 & b > 55 & b < 75;
-			purple_pattern = r > 210 & r < 240 & g > 20 & g < 40 & b > 214 & b < 240;
+			red_pattern = r > 220 & r < 260 & g > 50 & g < 80 & b > 50 & b < 80;
+			purple_pattern = r > 210 & r < 256 & g > 10 & g < 50 & b > 210 & b < 256;
 
 			[x_red, ~] = find(red_pattern);
 			[x_purple, ~] = find(purple_pattern);
@@ -507,38 +551,12 @@ classdef RobotController < handle
 			end
 		end
 
-		function pointCloud = take3DPointCloud(obj)
-			% Take a 3D point cloud with the sensor.
+		function objectPos = analyzeObjects(~, data)
+			% Analyze data in order to find object and return the position
+			% of the object (if any).
 
-			% Reduce the view angle to pi / 8 in order to better see the objects
-			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 8, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			% Rotate the sensor
-			res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, pi / 8], obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			% Turn the sensor for point cloud on
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_xyz_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			% Get the 3D point cloud
-			pointCloud = youbot_xyz_sensor(obj.vrep, obj.h, obj.vrep.simx_opmode_oneshot_wait);
-		end
-
-		function objectPos = analyze3DPointCloud(~, pointCloud)
-			% Analyze a 3D point cloud in order to find object
-			% and return the position of the object (if any).
-
-			% Filter the point cloud
-			filteredPointCloud = pointCloud;
-			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(4, :) < 1.87);
-			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(2, :) > -0.04);
-			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(2, :) < 0.02);
-
-			% Plot the 3D point cloud
-			figure;
-			plot3(filteredPointCloud(1, :), filteredPointCloud(3, :), filteredPointCloud(2, :), '*');
+			% TO DO
+			plot(data);
 
 			% Set the object position
 			objectPos = [];

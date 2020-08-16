@@ -23,8 +23,8 @@ classdef MapManager < handle
 		matrixWidth
 		matrixHeight
 
-		% Tables information
-		tablesCenterPositions
+		% Tables information (map coordinates)
+		tablesCenterPos
 		tablesRadius
 
 		% Types :
@@ -266,8 +266,14 @@ classdef MapManager < handle
 			centers = [centers(:, 2), centers(:, 1)];
 
 			% Set centers positions and radii
-			obj.tablesCenterPositions = round(centers ./ resizeFactor);
-			obj.tablesRadius = round(radii ./ resizeFactor);
+			centers = round(centers ./ resizeFactor);
+			radii = round(radii ./ resizeFactor);
+
+			% Transform to map coordinates system
+			obj.tablesCenterPos = obj.matrixToMap(centers);
+			obj.tablesRadius = radii ./ obj.mapPrec;
+
+			% Set types
 			obj.tablesType(1, 1:numel(radii)) = 0;
 		end
 
@@ -342,11 +348,11 @@ classdef MapManager < handle
 			end
 
 			% Tables positions
-			if ~isempty(obj.tablesCenterPositions)
+			if ~isempty(obj.tablesCenterPos)
 				for i = 1:numel(obj.tablesRadius)
-					xy = utils.toCartesian(obj.tablesCenterPositions(i, :), obj.matrixHeight);
+					xy = obj.tablesCenterPos(i, :) * obj.mapPrec;
 
-					viscircles(xy, obj.tablesRadius(i), 'Color', 'black', 'LineWidth', 3);
+					viscircles(xy, obj.tablesRadius(i) * obj.mapPrec, 'Color', 'black', 'LineWidth', 3);
 					hold on;
 				end
 			end
@@ -401,7 +407,7 @@ classdef MapManager < handle
 			mapPoint = utils.toCartesian(matrixPoint, obj.matrixWidth);
 
 			% To occupancy map coordinates
-			mapPoint = mapPoint ./ obj.mapPrec;
+			mapPoint = round(mapPoint ./ obj.mapPrec, 1);
 		end
 	end
 
