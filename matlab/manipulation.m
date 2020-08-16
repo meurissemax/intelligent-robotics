@@ -454,18 +454,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Take a 3D point cloud and analyze it
-			disp('3D POINT CLOUD AND ANALYZE IT');
-			%{
 			pointCloud = robot.take3DPointCloud();
-			objectPos = robot.analyzeObjects();
-			%}
-			objectPos = [];
+			objectPos = robot.analyze3DPointCloud(pointCloud);
 
 			% Check if there is graspable object
 			if ~isempty(objectPos)
 
 				% Grasp the object
-				robot.graspObject();
+				robot.graspObject(objectPos);
 
 				% Reset the data
 				pointsAround = [];

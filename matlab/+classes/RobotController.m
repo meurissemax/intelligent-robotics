@@ -507,7 +507,44 @@ classdef RobotController < handle
 			end
 		end
 
-		function graspObject(obj)
+		function pointCloud = take3DPointCloud(obj)
+			% Take a 3D point cloud with the sensor.
+
+			% Reduce the view angle to pi / 8 in order to better see the objects
+			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 8, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Rotate the sensor
+			res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, pi / 8], obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Turn the sensor for point cloud on
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_xyz_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Get the 3D point cloud
+			pointCloud = youbot_xyz_sensor(obj.vrep, obj.h, obj.vrep.simx_opmode_oneshot_wait);
+		end
+
+		function objectPos = analyze3DPointCloud(~, pointCloud)
+			% Analyze a 3D point cloud in order to find object
+			% and return the position of the object (if any).
+
+			% Filter the point cloud
+			filteredPointCloud = pointCloud;
+			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(4, :) < 1.87);
+			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(2, :) > -0.04);
+			%filteredPointCloud = filteredPointCloud(1:3, filteredPointCloud(2, :) < 0.02);
+
+			% Plot the 3D point cloud
+			figure;
+			plot3(filteredPointCloud(1, :), filteredPointCloud(3, :), filteredPointCloud(2, :), '*');
+
+			% Set the object position
+			objectPos = [];
+		end
+
+		function graspObject(obj, objectPos)
 			% Grasp an object.
 
 			% Set the inverse kinematics (IK) mode to position and orientation (km_mode = 2)
@@ -515,7 +552,7 @@ classdef RobotController < handle
 			vrchk(obj.vrep, res, true);
 
 			% Set the new position to the expected one for the gripper (predetermined value)
-			tpos = [0.3259, -0.0010, 0.2951];
+			tpos = objectPos;
 
 			res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
 			vrchk(obj.vrep, res, true);
