@@ -53,6 +53,8 @@ classdef RobotController < handle
 
 		% Parameter when the robot is near an obstacle
 		nearTresh = 0.45;
+		isNear = false;
+		nearCounter = 0;
 
 		%%%%%%%%%%%%
 		% Odometry %
@@ -302,6 +304,24 @@ classdef RobotController < handle
 				return;
 			end
 
+			% If robot was already detected as near an obstacle
+			if obj.isNear
+
+				% If the counter reach the limit, reset
+				% it and the near flag
+				if obj.nearCounter == 100
+					obj.isNear = false;
+					obj.nearCounter = 0;
+
+				% Increment the counter and stop the function
+				% to let time to the robot to move
+				else
+					obj.nearCounter = obj.nearCounter + 1;
+
+					return;
+				end
+			end
+
 			% Distance to some elements in front of the robot
 			inFrontPts = [0.25, 0.5, 0.75];
 			distFront = zeros(1, numel(inFrontPts));
@@ -316,6 +336,7 @@ classdef RobotController < handle
 			% Check if robot is too close to something
 			if sum(distFront < obj.nearTresh) > 0
 				near = true;
+				obj.isNear = true;
 			end
 		end
 
