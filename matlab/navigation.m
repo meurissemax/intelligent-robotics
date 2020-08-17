@@ -10,6 +10,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 	% Display information
 	fprintf('\n**************\n* Navigation *\n**************\n\n');
+	fprintf('Difficulty : %s\n\n', difficulty);
 
 	% Set the initial position of the robot
 	robot.setInitPos([map.mapWidth, map.mapHeight], difficulty);
@@ -108,12 +109,12 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 				[explored, p] = map.isExplored();
 
-				fprintf('Map is explored at %.2f%%.\n', p * 100);
+				fprintf('Map is explored at %.2f%%.', p * 100);
 
 				if explored
 
 					% Display information
-					fprintf('Map is fully explored ! Its representation will be exported.\n');
+					fprintf('\n\nMap is fully explored ! Its representation will be exported.\n');
 
 					% Export the map
 					map.export(sceneName);
@@ -123,7 +124,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 				else
 
 					% Display information
-					fprintf('Determining new objective and path...\n');
+					fprintf('\nDetermining new objective and path...\n\n');
 
 					% We get the point from which we determine new path
 					% (front point of the Hokuyo)

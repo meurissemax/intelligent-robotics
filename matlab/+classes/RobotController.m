@@ -168,6 +168,13 @@ classdef RobotController < handle
 				% Odometry %
 				%%%%%%%%%%%%
 
+				% Initialize estimated position (if needed, for example
+				% if the difficulty of the navigation was different from
+				% manipulation)
+				if isempty(obj.estimatedPos)
+					obj.estimatedPos = obj.absPos;
+				end
+
 				% Get angular positions of the wheels
 				wheelAngles = zeros(1, 4);
 

@@ -8,11 +8,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	%% Initialization %%
 	%%%%%%%%%%%%%%%%%%%%
 
-	% Display information
-	fprintf('\n****************\n* Manipulation *\n****************\n\n');
-
 	% Set the navigation difficulty
 	navigationDifficulty = 'medium';
+
+	% Display information
+	fprintf('\n****************\n* Manipulation *\n****************\n\n');
+	fprintf('Navigation difficulty : %s\n', navigationDifficulty);
+	fprintf('Table difficulty : %s\n\n', difficulty);
 
 	% Get the table difficulty
 	if strcmp(difficulty, 'hard')

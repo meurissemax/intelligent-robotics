@@ -218,6 +218,10 @@ classdef MapManager < handle
 		function [explored, p] = isExplored(obj)
 			% Check if the map can be consired as explored or not.
 
+			% Set the exploration threshold factor (to take into
+			% account small errors of the sensors)
+			explFact = 1.01;
+
 			% By default, map is not yet fully explored
 			explored = false;
 
@@ -234,7 +238,7 @@ classdef MapManager < handle
 			p = discoveredPts / totalPts;
 
 			% Evaluate if the map is considered as fully explored
-			if p >= obj.explThresh
+			if p >= obj.explThresh * explFact
 				explored = true;
 			end
 		end
@@ -261,20 +265,32 @@ classdef MapManager < handle
 			radiusRange = [guessRadius * resizeFactor, guessRadius * resizeFactor * 3];
 			[centers, radii] = imfindcircles(occMatInf, radiusRange);
 
-			% Update coordinate system of center points (to be the
-			% same as the project)
-			centers = [centers(:, 2), centers(:, 1)];
+			% If tables have been found, save data
+			if numel(radii) > 0
 
-			% Set centers positions and radii
-			centers = round(centers ./ resizeFactor);
-			radii = round(radii ./ resizeFactor);
+				% Update coordinate system of center points (to be the
+				% same as the project)
+				centers = [centers(:, 2), centers(:, 1)];
 
-			% Transform to map coordinates system
-			obj.tablesCenterPos = obj.matrixToMap(centers);
-			obj.tablesRadius = radii ./ obj.mapPrec;
+				% Set centers positions and radii
+				centers = round(centers ./ resizeFactor);
+				radii = round(radii ./ resizeFactor);
 
-			% Set types
-			obj.tablesType(1, 1:numel(radii)) = 0;
+				% Transform to map coordinates system
+				obj.tablesCenterPos = obj.matrixToMap(centers);
+				obj.tablesRadius = radii ./ obj.mapPrec;
+
+				% Set types
+				obj.tablesType(1, 1:numel(radii)) = 0;
+
+			% If no table has been found
+			else
+
+				% Set empty arrays
+				obj.tablesCenterPos = [];
+				obj.tablesRadius = [];
+				obj.tablesType = [];
+			end
 		end
 
 		function points = aroundTable(~, center, radius, number)
