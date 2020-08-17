@@ -277,6 +277,62 @@ classdef MapManager < handle
 			obj.tablesType(1, 1:numel(radii)) = 0;
 		end
 
+		function points = aroundTable(~, center, radius, number)
+			% Generate 'number' points equally spaced around a
+			% table centered at 'center' position and with a
+			% radius of 'radius'.
+
+			% Increase radius (to be sure to be accessible)
+			radius = (5 / 4) * radius;
+
+			% Initialize array of points
+			points = zeros(number, 2);
+
+			% Calculte the angle increment
+			dx = (2 * pi) / number;
+
+			% Initialize the angle
+			ang = 0;
+
+			% Generate each point
+			for i = 1:number
+				points(i, 1) = center(1) + radius * cos(ang);
+				points(i, 2) = center(2) + radius * sin(ang);
+
+				ang = ang + dx;
+			end
+		end
+
+		function closest = findClosestToTable(obj, from, center, radius, number)
+			% Find the closest point in 'points' which are around
+			% a table centered at 'center' with a radius of 'radius'.
+
+			% Generate points around the table
+			points = obj.aroundTable(center, radius, number);
+
+			% Initialize the distance
+			minDist = Inf;
+
+			% Initialize the index
+			index = 1;
+
+			% Iterate over each point
+			for i = 1:size(points, 1)
+
+				% Calculate distance
+				pointDist = pdist2(from, points(i, :), 'euclidean');
+
+				% Update min distance and index
+				if pointDist < minDist
+					minDist = pointDist;
+					index = i;
+				end
+			end
+
+			% Set the closest
+			closest = points(index, :);
+		end
+
 		function show(obj, varargin)
 			% Display the map. By default, the function displays the
 			% occupancy matrix (corresponding to the occupancy map) with

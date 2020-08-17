@@ -12,7 +12,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
 	% Set the navigation difficulty
-	navigationDifficulty = 'easy';
+	navigationDifficulty = 'medium';
 
 	% Get the table difficulty
 	if strcmp(difficulty, 'hard')
@@ -33,6 +33,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		map.load(varargin{1});
 		robot.setInitPos([map.mapWidth, map.mapHeight], navigationDifficulty);
 	end
+
+	% Initialize elapsed time for data update
+	elapsed = timestep;
 
 	% Initialize the state of the finite state machine
 	state = 'explore';
@@ -104,7 +107,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(navigationDifficulty);
+		robot.updatePositionAndOrientation(navigationDifficulty, elapsed);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -237,7 +240,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			else
 
 				% Get the position of the current table
-				currentTablePos = utils.findClosest(robot.absPos, utils.aroundCircle(map.tablesCenterPos(currentTable, :), map.tablesRadius(currentTable), 10));
+				currentTablePos = map.findClosestToTable(robot.absPos, map.tablesCenterPos(currentTable, :), map.tablesRadius(currentTable), 10);
 
 				% Check if the robot is already near the current table
 				if robot.checkObjective(currentTablePos)
@@ -315,8 +318,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				return;
 			end
 
+			% Get closest point to the table
+			closestTableObjects = map.findClosestToTable(robot.absPos, tableObjectsPos, tableObjectsRadius, 10);
+
 			% Check if robot is already near the objects table
-			if robot.checkObjective(tableObjectsPos + tableObjectiveRadius)
+			if robot.checkObjective(closestTableObjects)
 
 				% Update state
 				state = 'grasp';
@@ -327,7 +333,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Bring the robot to the object table
 				previousState = state;
-				gotoObjective = utils.findClosest(robot.absPos, utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 10));
+				gotoObjective = closestTableObjects;
 				state = 'goto';
 
 				% Display information
@@ -360,7 +366,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				else
 
 					% Generate points around table
-					pointsAround = utils.aroundCircle(tableObjectsPos, tableObjectsRadius, 8);
+					pointsAround = map.aroundTable(tableObjectsPos, tableObjectsRadius, 8);
 
 					% Update the flag
 					graspInProgress = true;
@@ -500,8 +506,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				return;
 			end
 
+			% Get closest point to the table
+			closestTableObjective = map.findClosestToTable(robot.absPos, tableObjectivePos, tableObjectiveRadius, 10);
+
 			% Check if robot is already near the objective table
-			if robot.checkObjective(tableObjectivePos + tableObjectiveRadius)
+			if robot.checkObjective(closestTableObjective)
 
 				% Update state
 				state = 'drop';
@@ -509,7 +518,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Bring the robot to the objective table
 				previousState = state;
-				gotoObjective = utils.findClosest(robot.absPos, utils.aroundCircle(tableObjectivePos, tableObjectiveRadius, 10));
+				gotoObjective = closestTableObjective;
 				state = 'goto';
 
 				% Display information
