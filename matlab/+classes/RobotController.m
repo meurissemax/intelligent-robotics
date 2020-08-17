@@ -519,26 +519,49 @@ classdef RobotController < handle
 			% Take a 3D point cloud with the sensor and return it.
 			%
 			% An additional argument can be passed to choose
-			% the orientation of the sensor.
+			% multiples angles.
 
-			% Reduce the view angle to pi / 8 in order to better see the objects
-			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 8, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			% Rotate the sensor, if needed
+			% Setup the scan angles
 			if nargin > 1
-				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
-				vrchk(obj.vrep, res);
-
-				pause(2);
+				scanAngles = varargin{1};
+			else
+				scanAngles = 0;
 			end
 
-			% Turn the sensor for point cloud on
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_xyz_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+			% Setup structure to handle 3D point cloud(s)
+			pointClouds = cell(1, numel(scanAngles));
+
+			% Reduce the view angle to pi / 8 in order to better see the objects
+			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 32, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
-			% Get the 3D point cloud
-			pointCloud = youbot_xyz_sensor(obj.vrep, obj.h, obj.vrep.simx_opmode_oneshot_wait);
+			% Take 3D point cloud for each scan angles
+			for i = 1:numel(scanAngles)
+
+				% Rotate the sensor
+				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (- pi / 2) + scanAngles(i)], obj.vrep.simx_opmode_oneshot_wait);
+				vrchk(obj.vrep, res);
+
+				% Turn the sensor for point cloud on
+				res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_xyz_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+				vrchk(obj.vrep, res);
+
+				% Get the 3D point cloud
+				pts = youbot_xyz_sensor(obj.vrep, obj.h, obj.vrep.simx_opmode_oneshot_wait);
+
+				% Define the rotation matrix
+				rotMat = [cos(scanAngles(i)), 0, sin(scanAngles(i)), 0; 0, 1, 0, 0; -sin(scanAngles(i)), 0, cos(scanAngles(i)), 0; 0, 0, 0, 1];
+
+				% Apply the rotation matrix
+				pointClouds{i} = rotMat * pts;
+			end
+
+			% Concatenate all point clouds in one
+			pointCloud = zeros(size(pointClouds{1}));
+
+			for i = 1:numel(scanAngles)
+				pointCloud = cat(2, pointCloud, pointClouds{i});
+			end
 		end
 
 		function tableType = analyzeTable(~, data)
