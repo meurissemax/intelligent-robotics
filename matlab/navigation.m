@@ -18,6 +18,9 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 	% (radius of 2) to 0 (free position)
 	map.setNeighborhood(robot.absPos, 2, 0, difficulty);
 
+	% Initialize elapsed time for data update
+	elapsed = timestep;
+
 	% Initialize the path and the objective of the robot
 	pathList = [];
 	objective = [];
@@ -48,7 +51,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(difficulty);
+		robot.updatePositionAndOrientation(difficulty, elapsed);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

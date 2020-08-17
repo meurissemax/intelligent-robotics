@@ -54,40 +54,15 @@ classdef RobotController < handle
 		% Parameter when the robot is near an obstacle
 		nearTresh = 0.45;
 
-		% Iteration counter
-		it = 0;
-
 		%%%%%%%%%%%%
 		% Odometry %
 		%%%%%%%%%%%%
 
 		% Previous values for the wheel angles
-		prevy1 = NaN;
-		prevy2 = NaN;
-		prevy3 = NaN;
-		prevy4 = NaN;
+		prevWheelAngles = [];
 
-		% Previous orientation value
-		prevOr = NaN;
-
-		% Estimated positions and orientation
-		posX = NaN;
-		posY = NaN;
-		theta = NaN;
-
-		%%%%%%%%%%%%%%%%%
-		% Scan matching %
-		%%%%%%%%%%%%%%%%%
-
-		% Amount of iterations before two scan matching
-		ctr = 100;
-
-		% Previous pose
-		pX = NaN;
-		pY = NaN; % To give a value sometime
-		or = NaN;
-
-		prevScan
+		% Estimated position
+		estimatedPos = [];
 	end
 
 
@@ -113,27 +88,42 @@ classdef RobotController < handle
 			%
 			% The initialization depends on the difficulty (i.e. the milestone).
 
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. a) %
+			%%%%%%%%%%%%%%%%%%%
+
+			% We have access to GPS for position and sensor for orientation.
+
 			if strcmp(difficulty, 'easy')
 				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
-			else
-				initOr = obj.getOrientationFromSensor();
+				obj.orientation = obj.getOrientationFromSensor();
 
-				obj.posX = mapDimensions(1);
-				obj.posY = mapDimensions(2);
-				obj.theta = initOr(3) + pi/2;
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. b) %
+			%%%%%%%%%%%%%%%%%%%
 
-				obj.pX = mapDimensions(1);
-				obj.pY = mapDimensions(2);
-				obj.or = initOr(3) + pi/2;
+			% We do not have access to GPS for position but we have sensor
+			% for orientation.
 
-				[pts, cts] = youbot_hokuyo(obj.vrep, obj.h, obj.vrep.simx_opmode_buffer);
-				cart = [double(pts(1, cts)); double(pts(2, cts))].';
-				scan = lidarScan(cart);
-				obj.prevScan = scan;
-
+			elseif strcmp(difficulty, 'medium')
 				obj.initPos = mapDimensions;
+				obj.orientation = obj.getOrientationFromSensor();
+
+				obj.estimatedPos = obj.initPos;
+
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. c) %
+			%%%%%%%%%%%%%%%%%%%
+
+			% TO DO
+			% We do not have any sensor.
+
+			else
+				obj.initPos = mapDimensions;
+				obj.orientation = [0 0 0];
 			end
 
+			% Set the position of the robot
 			obj.absPos = obj.initPos;
 		end
 
@@ -152,7 +142,7 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 
-		function updatePositionAndOrientation(obj, difficulty)
+		function updatePositionAndOrientation(obj, difficulty, elapsed)
 			% Update the position and orientation of the robot.
 			%
 			% The update depends on the difficulty (i.e. the milestone).
@@ -161,38 +151,54 @@ classdef RobotController < handle
 			% Position %
 			%%%%%%%%%%%%
 
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. a) %
+			%%%%%%%%%%%%%%%%%%%
+
 			if strcmp(difficulty, 'easy')
 				obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
-			else
+
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. b) %
+			%%%%%%%%%%%%%%%%%%%
+
+			elseif strcmp(difficulty, 'medium')
 
 				%%%%%%%%%%%%
 				% Odometry %
 				%%%%%%%%%%%%
 
 				% Get angular positions of the wheels
-				[~, y1] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(1), obj.vrep.simx_opmode_buffer);
-				[~, y2] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(2), obj.vrep.simx_opmode_buffer);
-				[~, y3] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(3), obj.vrep.simx_opmode_buffer);
-				[~, y4] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(4), obj.vrep.simx_opmode_buffer);
+				wheelAngles = zeros(1, 4);
+
+				for i = 1:numel(wheelAngles)
+					[~, wheelAngles(i)] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(i), obj.vrep.simx_opmode_buffer);
+				end
+
+				% Set psi angle
+				psiAngle = obj.orientation(3) + pi / 2;
 
 				% If first entry in the loop
-				if isnan(obj.prevy1)
-					obj.prevy1 = y1;
-					obj.prevy2 = y2;
-					obj.prevy3 = y3;
-					obj.prevy4 = y4;
+				if isempty(obj.prevWheelAngles)
+					obj.prevWheelAngles = wheelAngles;
+					elapsed = 0.05;
 				end
 
 				% Angular difference in the time considered
-				dw = [y1 - obj.prevy1, y2 - obj.prevy2, y3 - obj.prevy3, y4 - obj.prevy4];
+				dw = wheelAngles - obj.prevWheelAngles;
 				dw = wrapToPi(dw);
 
-				% Angular speeds -> displacement
-				fb = - (1 / 4) * (sum(dw)) * 0.05;
-				rot = (1 / 4) * (dw(1) + dw(2) - dw(3) - dw(4)) * 0.1274852; % Determined experimentally
+				% Angular speeds to get displacement (values determined experimentally)
+				fb = -0.25 * (sum(dw)) * 0.05;
+				rot = 0.25 * (dw(1) + dw(2) - dw(3) - dw(4)) * 0.1274852;
 
-				% Linear speeds
-				dt = 0.05;
+				% Linear speeds (forward-backward and rotational)
+				if elapsed < 0.05
+					elapsed = 0.05;
+				end
+
+				dt = elapsed;
+
 				fb = fb / dt;
 				rot = rot / dt;
 
@@ -200,63 +206,51 @@ classdef RobotController < handle
 					fb = 0;
 				end
 
-				% Use equations to determine pose. Theta is the angle of the robot (Euler3)
-				if abs(rot) > 10e-4
-					obj.posX = obj.posX - fb/rot * sin(obj.theta) + fb/rot * sin(obj.theta + rot * dt);
-					obj.posY = obj.posY + fb/rot * cos(obj.theta) - fb/rot * cos(obj.theta + rot * dt);
-					obj.theta = obj.theta + rot * dt; % Available as Euler(3) at any time for b), to estimate for c)
+				% Use equations to determine pose
+				if abs(rot) > 10e-5
+
+					% If change in orientation
+					obj.estimatedPos(1) = obj.estimatedPos(1) - (fb / rot) * sin(psiAngle) + (fb / rot) * sin(psiAngle + rot * dt);
+					obj.estimatedPos(2) = obj.estimatedPos(2) + (fb / rot) * cos(psiAngle) - (fb / rot) * cos(psiAngle + rot * dt);
 				else
-					% No change in orientation.
-					obj.posX = obj.posX + fb * sin(obj.theta);
-					obj.posY = obj.posY + fb * cos(obj.theta);
+
+					% If no change in orientation
+					obj.estimatedPos(1) = obj.estimatedPos(1) + fb * sin(psiAngle);
 				end
 
-				obj.prevy1 = y1;
-				obj.prevy2 = y2;
-				obj.prevy3 = y3;
-				obj.prevy4 = y4;
-
-				%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-				% Scan matching, every x iterations %
-				%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-				if obj.it == obj.ctr
-
-					% Obtain points from the Hokuyo and create a lidar object
-					[pts, cts] = youbot_hokuyo(obj.vrep, obj.h, obj.vrep.simx_opmode_buffer);
-					cart = [double(pts(1,cts)); double(pts(2,cts))].';
-					scan = lidarScan(cart);
-
-					% Compute pose. First two values are x and y, last one is orientation
-					pose = matchScans(scan, obj.prevScan);
-					obj.pX = obj.pX + pose(1);
-					obj.pY = obj.pY + pose(2);
-					obj.or = obj.or + pose(3);
-
-					% Step to combine the two values obtained via odometry and scan matching
-
-					% Maybe create a condition if scan matching is really dysfunctional in a given case
-					obj.posX = 0.8*obj.posX + 0.2*obj.pX;
-					obj.posY = 0.8*obj.posY + 0.2*obj.pY;
-					obj.theta = 0.8*obj.theta + 0.2*obj.or;
-					obj.pX = obj.posX;
-					obj.pY = obj.posY;
-					obj.or = obj.theta;
-
-					obj.prevScan = scan;
-				end
+				% Save wheel angles
+				obj.prevWheelAngles = wheelAngles;
 
 				% Update position
-				obj.absPos = [obj.posX, obj.posY];
-				obj.it = mod(obj.it + 1, 1000);
+				obj.absPos = obj.estimatedPos;
+
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. c) %
+			%%%%%%%%%%%%%%%%%%%
+
+			% TO DO
+
+			else
+				obj.absPos = obj.initPos;
 			end
 
 			%%%%%%%%%%%%%%%
 			% Orientation %
 			%%%%%%%%%%%%%%%
 
+			%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. c) %
+			%%%%%%%%%%%%%%%%%%%
+
+			% TO DO
+
 			if strcmp(difficulty, 'hard')
-				obj.orientation = [pi, pi, pi]; % TO DO for SLAM
+				obj.orientation = [0, 0, 0];
+
+			%%%%%%%%%%%%%%%%%%%%%%%%%%
+			% Milestone 1. a) and b) %
+			%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 			else
 				obj.orientation = obj.getOrientationFromSensor();
 			end

@@ -143,9 +143,9 @@ classdef MapManager < handle
 			if nargin > 3
 				nextPoint = varargin{1};
 				nextPoint = round(nextPoint .* obj.mapPrec);
-				nextPoint = utils.toMatrix(nextPoint, obj.matrixWidth);
+				nextPoint = obj.toMatrix(nextPoint);
 			else
-				nextPoint = obj.getNextPointToExplore(utils.toMatrix(from, obj.matrixWidth), occMatInf);
+				nextPoint = obj.getNextPointToExplore(obj.toMatrix(from), occMatInf);
 
 				% If we can not find new point, the map is probably explored
 				if nextPoint == Inf
@@ -156,7 +156,7 @@ classdef MapManager < handle
 			end
 
 			% Get the path to this point
-			startPoint = utils.toMatrix(pos, obj.matrixWidth);
+			startPoint = obj.toMatrix(pos);
 			stopPoint = [nextPoint(1), nextPoint(2)];
 
 			goalPoint = zeros([obj.matrixWidth, obj.matrixHeight]);
@@ -297,7 +297,7 @@ classdef MapManager < handle
 
 			% Visited free points
 			[i_free, j_free] = find(occMat == 0);
-			xy_free = utils.toCartesian([i_free, j_free], obj.matrixWidth);
+			xy_free = obj.toCartesian([i_free, j_free]);
 			plot(xy_free(:, 1), xy_free(:, 2), '.g', 'MarkerSize', 10);
 			hold on;
 
@@ -312,7 +312,7 @@ classdef MapManager < handle
 
 			% Visited occupied points
 			[i_occ, j_occ] = find(occMat == 1);
-			xy_occ = utils.toCartesian([i_occ, j_occ], obj.matrixWidth);
+			xy_occ = obj.toCartesian([i_occ, j_occ]);
 			plot(xy_occ(:, 1), xy_occ(:, 2), '.r', 'MarkerSize', 10);
 			hold on;
 
@@ -333,7 +333,7 @@ classdef MapManager < handle
 					pathConverted = zeros(size(pathDisp, 1), 2);
 
 					for i = 1:size(pathDisp, 1)
-						pathConverted(i, :) = utils.toCartesian(pathDisp(i, :), obj.matrixWidth);
+						pathConverted(i, :) = obj.toCartesian(pathDisp(i, :));
 					end
 
 					plot(pathConverted(:, 1), pathConverted(:, 2), '.m', 'MarkerSize', 20);
@@ -404,7 +404,7 @@ classdef MapManager < handle
 			% coordinates (cartesian convention).
 
 			% To cartesian
-			mapPoint = utils.toCartesian(matrixPoint, obj.matrixWidth);
+			mapPoint = obj.toCartesian(matrixPoint);
 
 			% To occupancy map coordinates
 			mapPoint = round(mapPoint ./ obj.mapPrec, 1);
@@ -501,6 +501,28 @@ classdef MapManager < handle
 					keep = false;
 				end
 			end
+		end
+
+		function xy = toCartesian(obj, ij)
+			% Returns the coordinates in a cartesian convention.
+			%
+			% 'ij' is an array [i1, j1; i2, j2; ...] where
+			%	- 'i' the first coordinate in matrix convention
+			%	- 'j' the second coordinate in matrix convention
+
+			xy(:, 1) = ij(:, 2);
+			xy(:, 2) = obj.matrixWidth - (ij(:, 1) - 1);
+		end
+
+		function ij = toMatrix(obj, xy)
+			% Returns the coordinates in a matrix convention.
+			%
+			% 'xy' is an array [x1, y1; x2, y2; ...] where
+			%	- 'x' the first coordinate in cartesian convention
+			%	- 'y' the second coordinate in cartesian convention
+
+			ij(1) = obj.matrixWidth - (xy(:, 2) - 1);
+			ij(2) = xy(:, 1);
 		end
 	end
 end
