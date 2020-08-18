@@ -59,6 +59,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	currentPoint = [];
 	quarterTable = false;
 
+	% Initialize variables for 'drop' state
+	dropPoints = [];
+	currentDropPoint = [];
+	halfTable = false;
+
 
 	%%%%%%%%%%%%%%%%%%%%%%
 	%% Tables detection %%
@@ -351,52 +356,51 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Stop the robot
 			robot.stop();
 
-			% We check if the 'pointsAround' array is empty.
-			% If yes, either there is no objects or we need to
-			% generate the points.
-			% If no, robot has still job to do !
+			% Check if there is a current point
+			if isempty(currentPoint)
 
-			if isempty(pointsAround)
+				% We check if the 'pointsAround' array is empty.
+				% If yes, either there is no objects or we need to
+				% generate the points.
+				% If no, robot has still job to do !
 
-				% Check if points was previously generated
-				if graspInProgress
+				if isempty(pointsAround)
 
-					% No object found, manipulation is done
-					fprintf('No (more) object on the table, manipulation is finished !\n');
+					% Check if points was previously generated
+					if graspInProgress
 
-					break;
-				else
+						% No object found, manipulation is done
+						fprintf('No (more) object on the table, manipulation is finished !\n');
 
-					% Generate points around table
-					pointsAround = map.aroundTable(tableObjectsPos, tableObjectsRadius, 8);
+						break;
+					else
 
-					% Update the flag
-					graspInProgress = true;
+						% Generate points around table
+						pointsAround = map.aroundTable(tableObjectsPos, tableObjectsRadius, 8);
+
+						% Update the flag
+						graspInProgress = true;
+					end
 				end
+
+				% Assign a point
+				currentPoint = pointsAround(end, :);
+
+				% Pop the point
+				pointsAround(end, :) = [];
+			end
+
+			% Check if robot is located on the current point
+			if robot.checkObjective(currentPoint)
+
+				% Update state
+				state = 'grasp-align';
 			else
 
-				% Check if there is a current point
-				if isempty(currentPoint)
-
-					% Assign a point
-					currentPoint = pointsAround(end, :);
-
-					% Pop the point
-					pointsAround(end, :) = [];
-				end
-
-				% Check if robot is located on the current point
-				if robot.checkObjective(currentPoint)
-
-					% Update state
-					state = 'grasp-align';
-				else
-
-					% Update state
-					previousState = state;
-					gotoObjective = currentPoint;
-					state = 'goto';
-				end
+				% Update state
+				previousState = state;
+				gotoObjective = currentPoint;
+				state = 'goto';
 			end
 
 		elseif strcmp(state, 'grasp-align')
@@ -469,7 +473,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			if ~isempty(objectPos)
 
 				% Grasp the object
-				robot.graspObject(objectPos);
+				robot.grasp(objectPos);
 
 				% Reset the data
 				pointsAround = [];
@@ -516,6 +520,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Update state
 				state = 'drop';
+
+				% Display information
+				fprintf('Dropping grasped object...\n');
 			else
 
 				% Bring the robot to the objective table
@@ -527,22 +534,110 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				fprintf('Go to the objective table.\n');
 			end
 
-		%%%%%%%%%%%%%%%%
-		% 'drop' state %
-		%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		% 'drop' state and substates %
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 		elseif strcmp(state, 'drop')
 
-			% Display information
-			fprintf('Dropping grasped object...\n');
+			% Stop the robot
+			robot.stop();
+
+			% If there is no more current drop point, get it
+			if isempty(currentDropPoint)
+
+				% If there is no more drop points, generate them
+				if isempty(dropPoints)
+					dropPoints = map.aroundTable(tableObjectivePos, tableObjectiveRadius, 10);
+				end
+
+				% Pop the drop point
+				currentDropPoint = dropPoints(end, :);
+				dropPoints(end, :) = [];
+			end
+
+			% Check if robot is located at the drop point
+			if robot.checkObjective(currentDropPoint)
+
+				% Update state
+				state = 'drop-align';
+			else
+
+				% Update state
+				previousState = 'drop';
+				gotoObjective = currentDropPoint;
+				state = 'goto';
+			end
+
+		elseif strcmp(state, 'drop-align')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle to be aligned with the table
+			tableObjectiveAngle = robot.getAngleTo(tableObjectivePos);
+
+			% Check if robot is aligned with the table
+			if robot.checkObjective(tableObjectiveAngle)
+
+				% Update state
+				state = 'drop-forward';
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = tableObjectiveAngle;
+				state = 'rotate';
+			end
+
+		elseif strcmp(state, 'drop-forward')
+
+			% Move the robot forward until it is near the table
+			if robot.forward()
+
+				% Update state
+				state = 'drop-half';
+			end
+
+		elseif strcmp(state, 'drop-half')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle for an half turn
+			if ~halfTable
+				halfAngle = robot.orientation(3) - pi;
+				halfTable = true;
+			end
+
+			% Check if robot has done the quarter turn
+			if robot.checkObjective(halfAngle)
+
+				% Reset flag
+				halfTable = false;
+
+				% Update state
+				state = 'drop-drop';
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = halfAngle;
+				state = 'rotate';
+			end
+
+		elseif strcmp(state, 'drop-drop')
 
 			% Stop the robot
 			robot.stop();
 
 			% Drop the grasped object
-			disp('DROP TO DO');
+			robot.drop();
 
-			% Update state of the robot
+			% Reset the flag
+			currentDropPoint = [];
+
+			% Update state
 			state = 'objects';
 
 		%%%%%%%%%%%%%%%%%

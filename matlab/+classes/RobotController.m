@@ -435,6 +435,33 @@ classdef RobotController < handle
 			end
 		end
 
+		function near = forward(obj)
+			% Move the robot forward until the robot is near an
+			% obstacle. It returns a flag that indicates if robot
+			% is near to the obstacle.
+
+			% By default, robot is not near the obstacle
+			near = false;
+
+			% Get point of Hokuyo to check
+			distPts = size(obj.inPts, 1) / 2;
+
+			% Distance to nearest element in front
+			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
+
+			% Set velocities of the robot
+			obj.forwBackVel = 1;
+			obj.leftRightVel = 0;
+			obj.rotVel = 0;
+
+			% Check the condition
+			if distNear < 0.5
+				near = true;
+			else
+				obj.drive();
+			end
+		end
+
 		function near = slide(obj, direction, action)
 			% Slide the robot left or right (depends on 'direction'
 			% value) until the robot is near an obstacle. It returns
@@ -607,7 +634,7 @@ classdef RobotController < handle
 			objectPos = [];
 		end
 
-		function graspObject(obj, objectPos)
+		function grasp(obj, objectPos)
 			% Grasp an object.
 
 			% Set the inverse kinematics (IK) mode to position and orientation (km_mode = 2)
@@ -641,6 +668,73 @@ classdef RobotController < handle
 			vrchk(obj.vrep, res);
 
 			% Make MATLAB wait for the gripper to be closed
+			pause(3);
+		end
+
+		function drop(obj)
+			% Drop the grasped object. The drop movement is always
+			% the same. There are intermediate positions to be sure
+			% that the arm displacements will not be too quick and
+			% so dangerous for the object.
+
+			% Remove inverse kinematic mode (to be sure)
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res, true);
+
+			% Intermediate position 1
+			chooseAngle = [0, pi / 4, -pi / 2, 0, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Intermediate position 2
+			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+				vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Intermediate position 3
+			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Intermediate position 4
+			chooseAngle = [0, - (pi / 16) * 6, - (pi / 16) * 6, (pi / 2)- (4 * pi) / 16, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Open the gripper
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			pause(3);
+
+			% Reset the arm position
+			chooseAngle = [0, 0, 0, 0, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+				vrchk(obj.vrep, res, true);
+			end
+
 			pause(3);
 		end
 	end
