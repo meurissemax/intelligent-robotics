@@ -8,13 +8,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	%% Initialization %%
 	%%%%%%%%%%%%%%%%%%%%
 
-	% Set the navigation difficulty
-	navigationDifficulty = 'medium';
-
 	% Display information
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
-	fprintf('Navigation difficulty : %s\n', navigationDifficulty);
-	fprintf('Table difficulty : %s\n\n', difficulty);
 
 	% Get the table difficulty
 	if strcmp(difficulty, 'hard')
@@ -33,11 +28,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 6
 		map.load(varargin{1});
-		robot.setInitPos([map.mapWidth, map.mapHeight], navigationDifficulty);
+		robot.setInitPos([map.mapWidth, map.mapHeight]);
 	end
 
 	% Initialize elapsed time for data update
 	elapsed = timestep;
+
+	% Initialize the iteration counter
+	itCounter = 0;
 
 	% Initialize the state of the finite state machine
 	state = 'explore';
@@ -54,10 +52,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	displayTypes = {'empty', 'easy', 'hard'};
 
 	% Initialize variable for 'grasp' state
-	pointsAround = [];
-	graspInProgress = false;
-	currentPoint = [];
-	quarterTable = false;
+	graspPoints = [];
+	currentGraspPoint = [];
 
 	% Initialize variables for 'drop' state
 	dropPoints = [];
@@ -114,14 +110,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(navigationDifficulty, elapsed);
+		robot.updatePositionAndOrientation(elapsed, itCounter, map, true);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		%% Update data from Hokuyo %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updateDataFromHokuyo();
+		robot.updateDataFromHokuyo(true);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -356,58 +352,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Stop the robot
 			robot.stop();
 
-			% Check if there is a current point
-			if isempty(currentPoint)
-
-				% We check if the 'pointsAround' array is empty.
-				% If yes, either there is no objects or we need to
-				% generate the points.
-				% If no, robot has still job to do !
-
-				if isempty(pointsAround)
-
-					% Check if points was previously generated
-					if graspInProgress
-
-						% No object found, manipulation is done
-						fprintf('No (more) object on the table, manipulation is finished !\n');
-
-						break;
-					else
-
-						% Generate points around table
-						pointsAround = map.aroundTable(tableObjectsPos, tableObjectsRadius, 8);
-
-						% Update the flag
-						graspInProgress = true;
-					end
-				end
-
-				% Assign a point
-				currentPoint = pointsAround(end, :);
-
-				% Pop the point
-				pointsAround(end, :) = [];
-			end
-
-			% Check if robot is located on the current point
-			if robot.checkObjective(currentPoint)
-
-				% Update state
-				state = 'grasp-align';
-			else
-
-				% Update state
-				previousState = state;
-				gotoObjective = currentPoint;
-				state = 'goto';
-			end
-
-		elseif strcmp(state, 'grasp-align')
-
-			% Stop the robot
-			robot.stop();
-
 			% Get angle to be aligned with the table
 			tableObjectsAngle = robot.getAngleTo(tableObjectsPos);
 
@@ -415,7 +359,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			if robot.checkObjective(tableObjectsAngle)
 
 				% Update state
-				state = 'grasp-quarter';
+				state = 'grasp-position';
 			else
 
 				% Update state
@@ -424,40 +368,47 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				state = 'rotate';
 			end
 
-		elseif strcmp(state, 'grasp-quarter')
+		elseif strcmp(state, 'grasp-position')
 
 			% Stop the robot
 			robot.stop();
 
-			% Get angle for a quarter turn
-			if ~quarterTable
-				quarterAngle = robot.orientation(3) - pi / 2;
-				quarterTable = true;
+			% Check if a current point is defined
+			if isempty(currentGraspPoint)
+
+				% Check if objects positions have already been defined
+				if isempty(graspPoints)
+
+					% Take a 3D point cloud
+					pointCloud = robot.take3DPointCloud();
+
+					% Get object positions
+					graspPoints = robot.analyzeObjects(pointCloud);
+
+					% Check if manipulation is done
+					if isempty(graspPoints)
+						fprintf('No (more) object available, manipulation is done !\n');
+
+						return;
+					end
+				end
+
+				% Pop a grasp position
+				currentGraspPoint = graspPoints(end, :);
+				graspPoints(end, :) = [];
 			end
 
-			% Check if robot has done the quarter turn
-			if robot.checkObjective(quarterAngle)
-
-				% Reset flag
-				quarterTable = false;
+			% Check if robot is located at current grasp point
+			if robot.checkObjective(currentGraspPoint)
 
 				% Update state
-				state = 'grasp-slide';
+				state = 'grasp-grasp';
 			else
 
 				% Update state
 				previousState = state;
-				rotateObjective = quarterAngle;
-				state = 'rotate';
-			end
-
-		elseif strcmp(state, 'grasp-slide')
-
-			% Slide robot to the left until it is near the table
-			if robot.slide('left', 'in')
-
-				% Update state
-				state = 'grasp-grasp';
+				gotoObjective = currentGraspPoint;
+				state = 'goto';
 			end
 
 		elseif strcmp(state, 'grasp-grasp')
@@ -465,39 +416,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Stop the robot
 			robot.stop();
 
-			% Take a 3D point cloud and analyze it
-			pointCloud = robot.take3DPointCloud();
-			objectPos = robot.analyzeObjects(pointCloud);
-
-			% Check if there is graspable object
-			if ~isempty(objectPos)
-
-				% Grasp the object
-				robot.grasp(objectPos);
-
-				% Reset the data
-				pointsAround = [];
-				graspInProgress = false;
-			end
+			% Grasp the object
+			robot.grasp(currentGraspPoint);
 
 			% Update the state
-			state = 'grasp-back';
+			state = 'objective';
 
 			% Reset the current point
-			currentPoint = [];
-
-		elseif strcmp(state, 'grasp-back')
-
-			% Slide robot to the right until it has space to move
-			if robot.slide('right', 'out')
-
-				% Update state according to previous state
-				if isempty(objectPos)
-					state = 'grasp';
-				else
-					state = 'objective';
-				end
-			end
+			currentGraspPoint = [];
 
 		%%%%%%%%%%%%%%%%%%%%%
 		% 'objective' state %
@@ -649,6 +575,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		end
 
 
+		%%%%%%%%%%%%%%%%%%%%%%%
+		%% Iteration counter %%
+		%%%%%%%%%%%%%%%%%%%%%%%
+
+		itCounter = itCounter + 1;
+
+
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
 		%% Physic verifications %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -660,7 +593,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		timeleft = timestep - elapsed;
 
 		if timeleft > 0
-			pause(min(timeleft, .01));
+			pause(timeleft);
 		end
 	end
 end
