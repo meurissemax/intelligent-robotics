@@ -18,8 +18,14 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 	% (radius of 2) to 0 (free position)
 	map.setNeighborhood(robot.absPos, 2, 0);
 
+	% Initialize copy of the map for correction purposes
+	correctMap = copy(map);
+
 	% Initialize elapsed time for data update
 	elapsed = timestep;
+
+	% Initialize total elapsed time counter
+	totalElapsed = timestep;
 
 	% Initialize the path and the objective of the robot
 	pathList = [];
@@ -32,7 +38,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 	itCounter = 0;
 
 	% Number of iteration between each map refresh
-	mapRefresh = 100;
+	mapRefresh = 50;
 
 
 	%%%%%%%%%%%%%%%
@@ -52,7 +58,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(elapsed, itCounter, map);
+		map = robot.updatePositionAndOrientation(elapsed, totalElapsed, map, correctMap);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,7 +125,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 				if pathList == Inf
 
 					% Display information
-					fprintf('Map is fully explored ! Navigation will stop here.\n');
+					fprintf('No new path available, map is fully explored ! Navigation will stop here.\n');
 
 					% Export the map
 					map.export(sceneName);
@@ -180,6 +186,8 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		% simulation (it is useless to go faster).
 
 		elapsed = toc;
+		totalElapsed = totalElapsed + max(elapsed, timestep);
+
 		timeleft = timestep - elapsed;
 
 		if timeleft > 0

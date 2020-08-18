@@ -34,8 +34,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Initialize elapsed time for data update
 	elapsed = timestep;
 
-	% Initialize the iteration counter
-	itCounter = 0;
+	% Initialize total elapsed time counter
+	totalElapsed = timestep;
 
 	% Initialize the state of the finite state machine
 	state = 'explore';
@@ -110,7 +110,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(elapsed, itCounter, map, true);
+		robot.updatePositionAndOrientation(elapsed, totalElapsed, map, map, true);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -144,96 +144,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		%	'goto' : move the robot to the objective 'gotoObjective'
 		%	'rotate' : rotate the robot to the objective 'rotateObjective'
 
-		%%%%%%%%%%%%%%%%
-		% 'goto' state %
-		%%%%%%%%%%%%%%%%
-
-		if strcmp(state, 'goto')
-
-			% If the robot is to close to an obstacle, stop it
-			% and reset the path and objective (in order to re
-			% define new ones and save the robot).
-
-			if robot.isNearObstacle()
-				robot.stop();
-
-				pathList = [];
-				objective = [];
-
-				hasAccCurrentObj = true;
-			end
-
-			% Check if robot is currently doing an objective
-			if hasAccCurrentObj
-
-				% If path is empty, robot is arrived at destination
-				% or robot has to plan a path
-				if isempty(pathList)
-
-					% Check if robot is arrived at destination
-					if robot.checkObjective(gotoObjective)
-
-						% Update state
-						state = previousState;
-					else
-
-						% Stop the robot during calculation
-						robot.stop();
-
-						% Plan a path to the objective
-						pathList = map.getNextPathToExplore(robot.absPos, robot.absPos, gotoObjective);
-
-						% If no path has been found, stop the manipulation
-						if pathList(1) == Inf
-							fprintf('Unable to find a path to objective, manipulation will stop here.\n');
-
-							return;
-						end
-					end
-				else
-
-					% Get the next objective
-					objective = map.matrixToMap(pathList(end, :));
-
-					% Remove the next objective from the path
-					pathList(end, :) = [];
-
-					% Set the flag
-					hasAccCurrentObj = false;
-				end
-			else
-
-				% We check if robot has accomplished its current objective
-				hasAccCurrentObj = robot.checkObjective(objective);
-
-				% If robot has not accomplished its objective, we move it
-				if ~hasAccCurrentObj
-					robot.move(objective);
-				end
-			end
-
-		%%%%%%%%%%%%%%%%%%
-		% 'rotate' state %
-		%%%%%%%%%%%%%%%%%%
-
-		elseif strcmp(state, 'rotate')
-
-			% We check if robot has the objective angle
-			if robot.checkObjective(rotateObjective)
-
-				% Update state
-				state = previousState;
-			else
-
-				% Rotate the robot
-				robot.rotate(rotateObjective);
-			end
-
 		%%%%%%%%%%%%%%%%%%%
 		% 'explore' state %
 		%%%%%%%%%%%%%%%%%%%
 
-		elseif strcmp(state, 'explore')
+		if strcmp(state, 'explore')
 
 			% Check if all tables have been explored
 			if currentTable > numel(map.tablesRadius)
@@ -380,7 +295,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				if isempty(graspPoints)
 
 					% Take a 3D point cloud
-					pointCloud = robot.take3DPointCloud();
+					pointCloud = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
 
 					% Get object positions
 					graspPoints = robot.analyzeObjects(pointCloud);
@@ -566,6 +481,91 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Update state
 			state = 'objects';
 
+		%%%%%%%%%%%%%%%%
+		% 'goto' state %
+		%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'goto')
+
+			% If the robot is to close to an obstacle, stop it
+			% and reset the path and objective (in order to re
+			% define new ones and save the robot).
+
+			if robot.isNearObstacle()
+				robot.stop();
+
+				pathList = [];
+				objective = [];
+
+				hasAccCurrentObj = true;
+			end
+
+			% Check if robot is currently doing an objective
+			if hasAccCurrentObj
+
+				% If path is empty, robot is arrived at destination
+				% or robot has to plan a path
+				if isempty(pathList)
+
+					% Check if robot is arrived at destination
+					if robot.checkObjective(gotoObjective)
+
+						% Update state
+						state = previousState;
+					else
+
+						% Stop the robot during calculation
+						robot.stop();
+
+						% Plan a path to the objective
+						pathList = map.getNextPathToExplore(robot.absPos, robot.absPos, gotoObjective);
+
+						% If no path has been found, stop the manipulation
+						if pathList(1) == Inf
+							fprintf('Unable to find a path to objective, manipulation will stop here.\n');
+
+							return;
+						end
+					end
+				else
+
+					% Get the next objective
+					objective = map.matrixToMap(pathList(end, :));
+
+					% Remove the next objective from the path
+					pathList(end, :) = [];
+
+					% Set the flag
+					hasAccCurrentObj = false;
+				end
+			else
+
+				% We check if robot has accomplished its current objective
+				hasAccCurrentObj = robot.checkObjective(objective);
+
+				% If robot has not accomplished its objective, we move it
+				if ~hasAccCurrentObj
+					robot.move(objective);
+				end
+			end
+
+		%%%%%%%%%%%%%%%%%%
+		% 'rotate' state %
+		%%%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'rotate')
+
+			% We check if robot has the objective angle
+			if robot.checkObjective(rotateObjective)
+
+				% Update state
+				state = previousState;
+			else
+
+				% Rotate the robot
+				robot.rotate(rotateObjective);
+			end
+
 		%%%%%%%%%%%%%%%%%
 		% Unknown state %
 		%%%%%%%%%%%%%%%%%
@@ -573,13 +573,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		else
 			error('Unknown state.');
 		end
-
-
-		%%%%%%%%%%%%%%%%%%%%%%%
-		%% Iteration counter %%
-		%%%%%%%%%%%%%%%%%%%%%%%
-
-		itCounter = itCounter + 1;
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -590,6 +583,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		% simulation (it is useless to go faster).
 
 		elapsed = toc;
+		totalElapsed = totalElapsed + max(elapsed, timestep);
+
 		timeleft = timestep - elapsed;
 
 		if timeleft > 0

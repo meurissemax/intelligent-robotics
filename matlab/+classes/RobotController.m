@@ -76,6 +76,12 @@ classdef RobotController < handle
 		% Scan index
 		scanIndex = 1;
 
+		% Number of seconds between two scan matching
+		secBetScan
+
+		% Counter to have the correct number of seconds
+		secBetScanCounter = 1;
+
 		% Number of iterations between two scan matching
 		itBetScan
 
@@ -89,7 +95,7 @@ classdef RobotController < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = RobotController(vrep, id, h, mapPrec, itBetScan, navigationDifficulty)
+		function obj = RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navigationDifficulty)
 			% Constructor of the class.
 
 			% Simulator parameters
@@ -101,8 +107,9 @@ classdef RobotController < handle
 			obj.mapPrec = mapPrec;
 
 			% Scan matching
-			obj.itBetScan = itBetScan;
-			obj.scans = cell(itBetScan, 5);
+			obj.secBetScan = secBetScan;
+			obj.itBetScan = round(secBetScan / timestep);
+			obj.scans = cell(obj.itBetScan, 5);
 
 			% Navigation difficulty
 			obj.navigationDifficulty = navigationDifficulty;
@@ -155,11 +162,14 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 
-		function updatePositionAndOrientation(obj, elapsed, itCounter, map, varargin)
+		function updatedMap = updatePositionAndOrientation(obj, elapsed, totalElapsed, map, correctMap, varargin)
 			% Update the position and orientation of the robot.
 
+			% By default, the returned map does not change
+			updatedMap = map;
+
 			% Check if we are in manipulation
-			if nargin > 4
+			if nargin > 5
 				manipulation = varargin{1};
 			else
 				manipulation = false;
@@ -254,11 +264,11 @@ classdef RobotController < handle
 				% Scan matching %
 				%%%%%%%%%%%%%%%%%
 
-				itCounter = mod(itCounter, obj.itBetScan);
-
-				if itCounter == obj.itBetScan - 1
+				if totalElapsed > obj.secBetScan * obj.secBetScanCounter
 					obj.stop();
-					obj.correctPositionAndScans(map, manipulation);
+					updatedMap = obj.correctPositionAndScans(correctMap, manipulation);
+
+					obj.secBetScanCounter = obj.secBetScanCounter + 1;
 				end
 			end
 
@@ -349,7 +359,7 @@ classdef RobotController < handle
 			end
 
 			% Distance to some elements in front of the robot
-			inFrontPts = [0.25, 0.5, 0.75];
+			inFrontPts = [0.1, 0.25, 0.5, 0.75, 0.9];
 			distFront = zeros(1, numel(inFrontPts));
 
 			sizeInPts = size(obj.inPts, 1);
@@ -481,7 +491,7 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% Check the condition
-			if distNear < 0.5
+			if distNear < 0.6
 				near = true;
 			else
 				obj.drive();
@@ -520,6 +530,13 @@ classdef RobotController < handle
 			% Setup the scan angles
 			if nargin > 1
 				scanAngles = varargin{1};
+
+				% Setup the view angle
+				if nargin > 2
+					viewAngle = varargin{2};
+				else
+					viewAngle = pi / 32;
+				end
 			else
 				scanAngles = 0;
 			end
@@ -528,7 +545,7 @@ classdef RobotController < handle
 			pointClouds = cell(1, numel(scanAngles));
 
 			% Reduce the view angle to pi / 8 in order to better see the objects
-			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 32, obj.vrep.simx_opmode_oneshot_wait);
+			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', viewAngle, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
 			% Take 3D point cloud for each scan angles
@@ -597,7 +614,7 @@ classdef RobotController < handle
 			% of the object (if any).
 
 			% TO DO
-			plot(data);
+			plot3(data(1, :), data(3, :), data(2, :), '.b', 'MarkerSize', 7);
 
 			% Set the object position
 			objectPos = [];
@@ -728,9 +745,15 @@ classdef RobotController < handle
 			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, obj.leftRightVel, obj.rotVel);
 		end
 
-		function correctPositionAndScans(obj, map, varargin)
+		function updatedMap = correctPositionAndScans(obj, correctMap, varargin)
 			% Corrects the position of the robot with the GPS as
 			% well as the map with the saved scans.
+
+			% Display information
+			fprintf('Correcting information with scan matching...\n');
+
+			% By default, updated map is a simple copy of the correct map
+			updatedMap = copy(correctMap);
 
 			% Check if we are in manipulation
 			if nargin > 2
@@ -784,8 +807,8 @@ classdef RobotController < handle
 					cInPts = transpose([cInPts(1, :); cInPts(2, :)]);
 
 					% Putting it in the map to correct it
-					map.setPoints(cInValue, 0, 'medium');
-					map.setPoints(cInPts, 1, 'medium');
+					correctMap.setPoints(cInValue, 0);
+					correctMap.setPoints(cInPts, 1);
 
 					% Reset scans
 					obj.scans{i, 1} = [];
@@ -797,6 +820,9 @@ classdef RobotController < handle
 					% Increment the counter
 					i = i + 1;
 				end
+
+				% Assign the corrected map
+				updatedMap = copy(correctMap);
 			end
 		end
 	end

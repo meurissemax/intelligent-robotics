@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-classdef MapManager < handle
+classdef MapManager < handle & matlab.mixin.Copyable
 
 	%%%%%%%%%%%%%%%%
 	%% Attributes %%
@@ -41,9 +41,6 @@ classdef MapManager < handle
 
 		% Inflation factor
 		inflatedFact = 0.6;
-
-		% Exploration threshold (percentage of points to visit)
-		explThresh = 1;
 
 		% Possible connection distance between points for
 		% path algorithm
@@ -88,11 +85,6 @@ classdef MapManager < handle
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
 
-			% Check if 'points' array is empty
-			if isempty(points)
-				return;
-			end
-
 			% If we have access to GPS each iteration, only assign
 			% free position to points that are not walls. This verification
 			% is useful because the Hokuyo is not always reliable for
@@ -105,6 +97,11 @@ classdef MapManager < handle
 				end
 			end
 
+			% Check if 'points' array is empty
+			if isempty(points)
+				return;
+			end
+
 			% Set the points
 			setOccupancy(obj.map, points, value);
 		end
@@ -115,7 +112,7 @@ classdef MapManager < handle
 			% the occupancy map.
 
 			% Set the point itself
-			obj.setPoints(point, value, obj.navigationDifficulty);
+			obj.setPoints(point, value);
 
 			% Get the limits of the map (to be sure to not exceed it)
 			xLimits = obj.map.XWorldLimits;
@@ -127,7 +124,7 @@ classdef MapManager < handle
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
 					if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= point(1) || y ~= point(2))
-						obj.setPoints([x, y], value, obj.navigationDifficulty);
+						obj.setPoints([x, y], value);
 					end
 				end
 			end
