@@ -444,13 +444,13 @@ classdef RobotController < handle
 			near = false;
 
 			% Get point of Hokuyo to check
-			distPts = size(obj.inPts, 1) / 2;
+			distPts = round(size(obj.inPts, 1) * 0.5);
 
 			% Distance to nearest element in front
 			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
 
 			% Set velocities of the robot
-			obj.forwBackVel = 1;
+			obj.forwBackVel = -1;
 			obj.leftRightVel = 0;
 			obj.rotVel = 0;
 
@@ -711,16 +711,6 @@ classdef RobotController < handle
 
 			pause(3);
 
-			% Intermediate position 4
-			chooseAngle = [0, - (pi / 16) * 6, - (pi / 16) * 6, (pi / 2)- (4 * pi) / 16, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
 			% Open the gripper
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
@@ -728,7 +718,7 @@ classdef RobotController < handle
 			pause(3);
 
 			% Reset the arm position
-			chooseAngle = [0, 0, 0, 0, 0];
+			chooseAngle = [0, 0, pi / 2, pi / 2, 0];
 
 			for i = 1:numel(chooseAngle)
 				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
