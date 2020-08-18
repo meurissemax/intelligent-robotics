@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
+function navigation(vrep, id, timestep, map, robot, sceneName)
 
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
@@ -10,14 +10,13 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 
 	% Display information
 	fprintf('\n**************\n* Navigation *\n**************\n\n');
-	fprintf('Difficulty : %s\n\n', difficulty);
 
 	% Set the initial position of the robot
-	robot.setInitPos([map.mapWidth, map.mapHeight], difficulty);
+	robot.setInitPos([map.mapWidth, map.mapHeight]);
 
 	% Set the position of the robot and his neighborhood
 	% (radius of 2) to 0 (free position)
-	map.setNeighborhood(robot.absPos, 2, 0, difficulty);
+	map.setNeighborhood(robot.absPos, 2, 0);
 
 	% Initialize elapsed time for data update
 	elapsed = timestep;
@@ -29,9 +28,10 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 	% Initialize the flag for the objective
 	hasAccCurrentObj = true;
 
-	% Initialize counter for the map rendering (map will
-	% refresh each 'mapRefresh' iterations)
-	mapCounter = 0;
+	% Initialize the iteration counter
+	itCounter = 0;
+
+	% Number of iteration between each map refresh
 	mapRefresh = 100;
 
 
@@ -52,7 +52,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(difficulty, elapsed);
+		robot.updatePositionAndOrientation(elapsed, itCounter, map);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,8 +63,8 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		robot.updateDataFromHokuyo();
 
 		% Update the map with data from Hokuyo
-		map.setPoints(robot.inValue, 0, difficulty);
-		map.setPoints(robot.inPts, 1, difficulty);
+		map.setPoints(robot.inValue, 0);
+		map.setPoints(robot.inPts, 1);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -103,50 +103,29 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 				% We stop the robot during the calculation
 				robot.stop();
 
-				% We check if map is possibly explored.
-				% If yes, we stop the simulation : exploration is done.
-				% If no, we define a new path.
+				% Display information
+				fprintf('Determining new objective and path...\n');
 
-				[explored, p] = map.isExplored();
+				% We get the point from which we determine new path
+				% (front point of the Hokuyo)
+				inFront = round(size(robot.inPts, 1) / 2);
+				from = robot.inPts(inFront, :);
 
-				fprintf('Map is explored at %.2f%%.', p * 100);
+				% We determine the new path
+				pathList = map.getNextPathToExplore(robot.absPos, from);
 
-				if explored
+				% If we can not find a new path, the map has been probably
+				% fully explored
+				if pathList == Inf
 
 					% Display information
-					fprintf('\n\nMap is fully explored ! Its representation will be exported.\n');
+					fprintf('Map is fully explored ! Navigation will stop here.\n');
 
 					% Export the map
 					map.export(sceneName);
 
 					% Stop the simulation
-					break;
-				else
-
-					% Display information
-					fprintf('\nDetermining new objective and path...\n\n');
-
-					% We get the point from which we determine new path
-					% (front point of the Hokuyo)
-					inFront = round(size(robot.inPts, 1) / 2);
-					from = robot.inPts(inFront, :);
-
-					% We determine the new path
-					pathList = map.getNextPathToExplore(robot.absPos, from);
-
-					% If we can not find a new path, the map has been probably
-					% fully explored
-					if pathList == Inf
-
-						% Display information
-						fprintf('Unable to determine new objective or path. Navigation will stop here.\n');
-
-						% Export the map
-						map.export(sceneName);
-
-						% Stop the simulation
-						break;
-					end
+					return;
 				end
 			end
 
@@ -181,11 +160,16 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		% Only refresh the map each 'mapRefresh' iteration (because it
 		% is very heavy to render the map each iteration).
 
-		if mod(mapCounter, mapRefresh) == 0
+		if mod(itCounter, mapRefresh) == 0
 			map.show(robot.absPos, [pathList; mapObjective], [robot.inPts; robot.inValue]);
 		end
 
-		mapCounter = mapCounter + 1;
+
+		%%%%%%%%%%%%%%%%%%%%%%%
+		%% Iteration counter %%
+		%%%%%%%%%%%%%%%%%%%%%%%
+
+		itCounter = itCounter + 1;
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -199,7 +183,7 @@ function navigation(vrep, id, timestep, map, robot, difficulty, sceneName)
 		timeleft = timestep - elapsed;
 
 		if timeleft > 0
-			pause(min(timeleft, .01));
+			pause(timeleft);
 		end
 	end
 end

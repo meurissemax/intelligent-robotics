@@ -36,11 +36,14 @@ classdef MapManager < handle
 	end
 
 	properties (Access = private)
+		% The navigation difficulty
+		navigationDifficulty
+
 		% Inflation factor
 		inflatedFact = 0.6;
 
 		% Exploration threshold (percentage of points to visit)
-		explThresh = 0.995;
+		explThresh = 1;
 
 		% Possible connection distance between points for
 		% path algorithm
@@ -53,7 +56,7 @@ classdef MapManager < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = MapManager(mapWidth, mapHeight, mapPrec)
+		function obj = MapManager(mapWidth, mapHeight, mapPrec, navigationDifficulty)
 			% Constructor of the class. It sets the dimensions and the
 			% precision of the map and instantiate the occupancy map.
 
@@ -69,6 +72,9 @@ classdef MapManager < handle
 			% Instantiate the occupancy map (with dimensions x2 because
 			% we do not know where the robot starts in the map)
 			obj.map = occupancyMap(mapWidth * 2, mapHeight * 2, mapPrec);
+
+			% Save the difficulty
+			obj.navigationDifficulty = navigationDifficulty;
 		end
 
 		function occMat = getOccupancyMatrix(obj)
@@ -77,33 +83,39 @@ classdef MapManager < handle
 			occMat = occupancyMatrix(obj.map, 'ternary');
 		end
 
-		function setPoints(obj, points, value, difficulty)
+		function setPoints(obj, points, value)
 			% Assign a value 'value' to some points 'points' of the
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
-			%
+
+			% Check if 'points' array is empty
+			if isempty(points)
+				return;
+			end
+
 			% If we have access to GPS each iteration, only assign
 			% free position to points that are not walls. This verification
 			% is useful because the Hokuyo is not always reliable for
 			% the point detection.
 
 			if value == 0
-				if strcmp(difficulty, 'easy')
+				if strcmp(obj.navigationDifficulty, 'easy')
 					occVal = getOccupancy(obj.map, points);
 					points = points(occVal < 0.9, :);
 				end
 			end
 
+			% Set the points
 			setOccupancy(obj.map, points, value);
 		end
 
-		function setNeighborhood(obj, point, radius, value, difficulty)
+		function setNeighborhood(obj, point, radius, value)
 			% Assign a value 'value' to a point 'point' and his
 			% neighborhood (of radius 'radius' in the occupancy map) in
 			% the occupancy map.
 
 			% Set the point itself
-			obj.setPoints(point, value, difficulty);
+			obj.setPoints(point, value, obj.navigationDifficulty);
 
 			% Get the limits of the map (to be sure to not exceed it)
 			xLimits = obj.map.XWorldLimits;
@@ -115,7 +127,7 @@ classdef MapManager < handle
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
 					if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= point(1) || y ~= point(2))
-						obj.setPoints([x, y], value, difficulty);
+						obj.setPoints([x, y], value, obj.navigationDifficulty);
 					end
 				end
 			end
@@ -213,34 +225,6 @@ classdef MapManager < handle
 
 			% Optimize the path
 			nextPath = obj.optimizePath(pathList);
-		end
-
-		function [explored, p] = isExplored(obj)
-			% Check if the map can be consired as explored or not.
-
-			% Set the exploration threshold factor (to take into
-			% account small errors of the sensors)
-			explFact = 1.01;
-
-			% By default, map is not yet fully explored
-			explored = false;
-
-			% Get the occupancy matrix
-			occMat = obj.getOccupancyMatrix();
-
-			% Number of points representing the map in the occupancy matrix
-			totalPts = obj.mapWidth * obj.mapHeight * power(obj.mapPrec, 2);
-
-			% Count the number of points discovered (free and obstacle)
-			discoveredPts = nnz(occMat == 0) + nnz(occMat == 1);
-
-			% Get the percentage of points discovered
-			p = discoveredPts / totalPts;
-
-			% Evaluate if the map is considered as fully explored
-			if p >= obj.explThresh * explFact
-				explored = true;
-			end
 		end
 
 		function findTables(obj)

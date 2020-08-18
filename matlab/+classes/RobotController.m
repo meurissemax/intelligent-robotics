@@ -56,6 +56,9 @@ classdef RobotController < handle
 		isNear = false;
 		nearCounter = 0;
 
+		% Navigation difficulty
+		navigationDifficulty
+
 		%%%%%%%%%%%%
 		% Odometry %
 		%%%%%%%%%%%%
@@ -65,6 +68,19 @@ classdef RobotController < handle
 
 		% Estimated position
 		estimatedPos = [];
+
+		%%%%%%%%%%%%%%%%%
+		% Scan matching %
+		%%%%%%%%%%%%%%%%%
+
+		% Scan index
+		scanIndex = 1;
+
+		% Number of iterations between two scan matching
+		itBetScan
+
+		% List of scans
+		scans
 	end
 
 
@@ -73,22 +89,28 @@ classdef RobotController < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = RobotController(vrep, id, h, mapPrec)
-			% Constructor of the class. It sets the parameters of the
-			% simulator linked to the robot.
+		function obj = RobotController(vrep, id, h, mapPrec, itBetScan, navigationDifficulty)
+			% Constructor of the class.
 
+			% Simulator parameters
 			obj.vrep = vrep;
 			obj.id = id;
 			obj.h = h;
 
+			% Map information
 			obj.mapPrec = mapPrec;
+
+			% Scan matching
+			obj.itBetScan = itBetScan;
+			obj.scans = cell(itBetScan, 5);
+
+			% Navigation difficulty
+			obj.navigationDifficulty = navigationDifficulty;
 		end
 
-		function setInitPos(obj, mapDimensions, difficulty)
+		function setInitPos(obj, mapDimensions)
 			% Set the initial position of the robot. This initial position
 			% is set once and does not change in the future.
-			%
-			% The initialization depends on the difficulty (i.e. the milestone).
 
 			%%%%%%%%%%%%%%%%%%%
 			% Milestone 1. a) %
@@ -96,7 +118,7 @@ classdef RobotController < handle
 
 			% We have access to GPS for position and sensor for orientation.
 
-			if strcmp(difficulty, 'easy')
+			if strcmp(obj.navigationDifficulty, 'easy')
 				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 				obj.orientation = obj.getOrientationFromSensor();
 
@@ -104,25 +126,14 @@ classdef RobotController < handle
 			% Milestone 1. b) %
 			%%%%%%%%%%%%%%%%%%%
 
-			% We do not have access to GPS for position but we have sensor
-			% for orientation.
+			% We do not have constantly access to GPS (only each X minutes) for
+			% position but we have sensor for orientation.
 
-			elseif strcmp(difficulty, 'medium')
-				obj.initPos = mapDimensions;
+			elseif strcmp(obj.navigationDifficulty, 'medium')
+				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 				obj.orientation = obj.getOrientationFromSensor();
 
-				obj.estimatedPos = obj.initPos;
-
-			%%%%%%%%%%%%%%%%%%%
-			% Milestone 1. c) %
-			%%%%%%%%%%%%%%%%%%%
-
-			% TO DO
-			% We do not have any sensor.
-
-			else
-				obj.initPos = mapDimensions;
-				obj.orientation = [0 0 0];
+				obj.estimatedPos = mapDimensions;
 			end
 
 			% Set the position of the robot
@@ -144,10 +155,15 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 
-		function updatePositionAndOrientation(obj, difficulty, elapsed)
+		function updatePositionAndOrientation(obj, elapsed, itCounter, map, varargin)
 			% Update the position and orientation of the robot.
-			%
-			% The update depends on the difficulty (i.e. the milestone).
+
+			% Check if we are in manipulation
+			if nargin > 4
+				manipulation = varargin{1};
+			else
+				manipulation = false;
+			end
 
 			%%%%%%%%%%%%
 			% Position %
@@ -157,14 +173,14 @@ classdef RobotController < handle
 			% Milestone 1. a) %
 			%%%%%%%%%%%%%%%%%%%
 
-			if strcmp(difficulty, 'easy')
+			if strcmp(obj.navigationDifficulty, 'easy')
 				obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
 
 			%%%%%%%%%%%%%%%%%%%
 			% Milestone 1. b) %
 			%%%%%%%%%%%%%%%%%%%
 
-			elseif strcmp(difficulty, 'medium')
+			elseif strcmp(obj.navigationDifficulty, 'medium')
 
 				%%%%%%%%%%%%
 				% Odometry %
@@ -225,6 +241,7 @@ classdef RobotController < handle
 
 					% If no change in orientation
 					obj.estimatedPos(1) = obj.estimatedPos(1) + fb * sin(psiAngle);
+					obj.estimatedPos(2) = obj.estimatedPos(2) + fb * cos(psiAngle);
 				end
 
 				% Save wheel angles
@@ -233,39 +250,26 @@ classdef RobotController < handle
 				% Update position
 				obj.absPos = obj.estimatedPos;
 
-			%%%%%%%%%%%%%%%%%%%
-			% Milestone 1. c) %
-			%%%%%%%%%%%%%%%%%%%
+				%%%%%%%%%%%%%%%%%
+				% Scan matching %
+				%%%%%%%%%%%%%%%%%
 
-			% TO DO
+				itCounter = mod(itCounter, obj.itBetScan);
 
-			else
-				obj.absPos = obj.initPos;
+				if itCounter == obj.itBetScan - 1
+					obj.stop();
+					obj.correctPositionAndScans(map, manipulation);
+				end
 			end
 
 			%%%%%%%%%%%%%%%
 			% Orientation %
 			%%%%%%%%%%%%%%%
 
-			%%%%%%%%%%%%%%%%%%%
-			% Milestone 1. c) %
-			%%%%%%%%%%%%%%%%%%%
-
-			% TO DO
-
-			if strcmp(difficulty, 'hard')
-				obj.orientation = [0, 0, 0];
-
-			%%%%%%%%%%%%%%%%%%%%%%%%%%
-			% Milestone 1. a) and b) %
-			%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-			else
-				obj.orientation = obj.getOrientationFromSensor();
-			end
+			obj.orientation = obj.getOrientationFromSensor();
 		end
 
-		function updateDataFromHokuyo(obj)
+		function updateDataFromHokuyo(obj, varargin)
 			% Retrieve data from Hokuyo sensor. 'inValue' corresponds to
 			% free points detected by the Hokuyo and 'inPts' corresponds
 			% to unreachable points detected by Hokuyo (wall, obstacle,
@@ -273,6 +277,13 @@ classdef RobotController < handle
 			%
 			% The points are transformed in absolute reference in order
 			% to include them in the map.
+
+			% Check if we are in manipulation
+			if nargin > 1
+				manipulation = varargin{1};
+			else
+				manipulation = false;
+			end
 
 			% Transformation to robot absolute position
 			trf = transl([obj.absPos, 0]) * trotx(obj.orientation(1)) * troty(obj.orientation(2)) * trotz(obj.orientation(3));
@@ -289,6 +300,21 @@ classdef RobotController < handle
 			% Transforming 'pts' to absolute reference
 			obj.inPts = homtrans(trf, [pts(1, cts); pts(2, cts); zeros(1, size(pts(1, cts), 2))]);
 			obj.inPts = transpose([obj.inPts(1, :); obj.inPts(2, :)]);
+
+			% Save the scans to correct them later
+			if ~strcmp(obj.navigationDifficulty, 'easy') && ~manipulation
+				obj.scans{obj.scanIndex, 1} = in;
+				obj.scans{obj.scanIndex, 2} = pts;
+				obj.scans{obj.scanIndex, 3} = cts;
+				obj.scans{obj.scanIndex, 4} = obj.absPos;
+				obj.scans{obj.scanIndex, 5} = obj.orientation;
+
+				obj.scanIndex = mod(obj.scanIndex + 1, obj.itBetScan);
+
+				if obj.scanIndex == 0
+					obj.scanIndex = 1;
+				end
+			end
 		end
 
 		function near = isNearObstacle(obj)
@@ -462,63 +488,6 @@ classdef RobotController < handle
 			end
 		end
 
-		function near = slide(obj, direction, action)
-			% Slide the robot left or right (depends on 'direction'
-			% value) until the robot is near an obstacle. It returns
-			% a flag that indicates if robot is near to the obstacle.
-			%
-			% An additional parameter, 'action' is used to set if the
-			% robot has to bond ('in') or to walk away ('out').
-
-			% By default, robot is not near the obstacle
-			near = false;
-
-			% Get point of Hokuyo to check
-			rayID = 5;
-
-			if strcmp(direction, 'left')
-				if strcmp(action, 'in')
-					distPts = size(obj.inPts, 1) - rayID;
-				else
-					distPts = rayID;
-				end
-			else
-				if strcmp(direction, 'in')
-					distPts = rayID;
-				else
-					distPts = size(obj.inPts, 1) - rayID;
-				end
-			end
-
-			% Distance to nearest element at 'direction'
-			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
-
-			% Set velocities of the robot
-			obj.forwBackVel = 0;
-
-			if strcmp(direction, 'left')
-				obj.leftRightVel = 1;
-			else
-				obj.leftRightVel = -1;
-			end
-
-			obj.rotVel = 0;
-
-			% Set the condition according to the action
-			if strcmp(action, 'in')
-				condition = distNear < 0.3;
-			else
-				condition = distNear > 0.6;
-			end
-
-			% Check the condition
-			if condition
-				near = true;
-			else
-				obj.drive();
-			end
-		end
-
 		function img = takePhoto(obj, varargin)
 			% Take a picture with the sensor and return it.
 			%
@@ -531,7 +500,7 @@ classdef RobotController < handle
 
 			% Rotate the sensor, if needed
 			if nargin > 1
-				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
+				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (-pi / 2) + varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
 				vrchk(obj.vrep, res);
 
 				pause(2);
@@ -566,7 +535,7 @@ classdef RobotController < handle
 			for i = 1:numel(scanAngles)
 
 				% Rotate the sensor
-				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (- pi / 2) + scanAngles(i)], obj.vrep.simx_opmode_oneshot_wait);
+				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (-pi / 2) + scanAngles(i)], obj.vrep.simx_opmode_oneshot_wait);
 				vrchk(obj.vrep, res);
 
 				% Turn the sensor for point cloud on
@@ -757,6 +726,78 @@ classdef RobotController < handle
 			% Use the defined velocities of the robot to move it.
 
 			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, obj.leftRightVel, obj.rotVel);
+		end
+
+		function correctPositionAndScans(obj, map, varargin)
+			% Corrects the position of the robot with the GPS as
+			% well as the map with the saved scans.
+
+			% Check if we are in manipulation
+			if nargin > 2
+				manipulation = varargin{1};
+			else
+				manipulation = false;
+			end
+
+			% Get the true position
+			truePos = obj.getRelativePositionFromGPS() - obj.initPos;
+
+			% Update the estimated position
+			obj.estimatedPos = truePos;
+
+			% If we are not in manipulation milestone
+			if ~manipulation
+
+				% Reset scan index
+				obj.scanIndex = 1;
+
+				% Detect deviation of our position from that one
+				devPos = obj.estimatedPos - truePos;
+
+				% Increment of deviation at each step
+				incDev = devPos ./ obj.itBetScan;
+
+				% Updating all scans from the 'itBetScan' previous iterations
+				i = 1;
+
+				while i < obj.itBetScan && ~isempty(obj.scans{i, 1})
+
+					% Get saved data
+					in = obj.scans{i, 1};
+					pts = obj.scans{i, 2};
+					cts = obj.scans{i, 3};
+					sAbsPos = obj.scans{i, 4};
+					sOrientation = obj.scans{i, 5};
+
+					% Corrective term
+					sAbsPos = sAbsPos - (incDev .* (i - 1));
+
+					% Compute the corrected scans
+					trf = transl([sAbsPos, 0]) * trotx(sOrientation(1)) * troty(sOrientation(2)) * trotz(sOrientation(3));
+
+					% Transforming inside points to absolute reference
+					cInValue = homtrans(trf, [obj.X(in); obj.Y(in); zeros(1, size(obj.X(in), 2))]);
+					cInValue = transpose([cInValue(1, :); cInValue(2, :)]);
+
+					% Transforming 'pts' to absolute reference
+					cInPts = homtrans(trf, [pts(1, cts); pts(2, cts); zeros(1, size(pts(1, cts), 2))]);
+					cInPts = transpose([cInPts(1, :); cInPts(2, :)]);
+
+					% Putting it in the map to correct it
+					map.setPoints(cInValue, 0, 'medium');
+					map.setPoints(cInPts, 1, 'medium');
+
+					% Reset scans
+					obj.scans{i, 1} = [];
+					obj.scans{i, 2} = [];
+					obj.scans{i, 3} = [];
+					obj.scans{i, 4} = [];
+					obj.scans{i, 5} = [];
+
+					% Increment the counter
+					i = i + 1;
+				end
+			end
 		end
 	end
 end
