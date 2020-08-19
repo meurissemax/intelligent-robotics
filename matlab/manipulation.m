@@ -193,11 +193,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				% Display information
 				fprintf('Analyzing the table...\n');
 
-				% Take a photo of the table
-				img = robot.takePhoto();
+				% Take a 3D point cloud of the table
+				pc = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
 
 				% Determine table type and update data
-				tableType = robot.analyzeTable(img);
+				tableType = robot.analyzeTable(pc);
 				map.tablesType(1, currentTable) = tableType;
 
 				% Update manipulation local variables

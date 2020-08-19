@@ -498,29 +498,6 @@ classdef RobotController < handle
 			end
 		end
 
-		function img = takePhoto(obj, varargin)
-			% Take a picture with the sensor and return it.
-			%
-			% An additional argument can be passed to choose
-			% the orientation of the sensor.
-
-			% Setup the sensor for capturing an image
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_rgb_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			% Rotate the sensor, if needed
-			if nargin > 1
-				res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (-pi / 2) + varargin{1}], obj.vrep.simx_opmode_oneshot_wait);
-				vrchk(obj.vrep, res);
-
-				pause(2);
-			end
-
-			% Capturing the image
-			[res, ~, img] = obj.vrep.simxGetVisionSensorImage2(obj.id, obj.h.rgbSensor, 0, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-		end
-
 		function pointCloud = take3DPointCloud(obj, varargin)
 			% Take a 3D point cloud with the sensor and return it.
 			%
@@ -578,34 +555,29 @@ classdef RobotController < handle
 		end
 
 		function tableType = analyzeTable(~, data)
-			% Analyze the input data to determine the type of the table
-			% ('empty', 'easy' or 'hard').
+			% Analyze the input data to determine the type of the table.
 
-			% Get colors channel
-			r = data(:, :, 1);
-			g = data(:, :, 2);
-			b = data(:, :, 3);
+			% Filter points
+			f = data(4, :) < 2 & data(2, :) > -0.04;
+			data = data(:, f);
 
-			% Find specific colors
-			red_pattern = r > 220 & r < 260 & g > 50 & g < 80 & b > 50 & b < 80;
-			purple_pattern = r > 210 & r < 256 & g > 10 & g < 50 & b > 210 & b < 256;
+			% Remove center point (robot itself)
+			f = data(4, :) ~= 0;
+			data = data(:, f);
 
-			[x_red, ~] = find(red_pattern);
-			[x_purple, ~] = find(purple_pattern);
+			% Convert data to point cloud object
+			pc = pointCloud([data(1, :)', data(3, :)', data(2, :)']);
 
-			% Calculate proportions of specific colors
-			imsize = numel(r);
+			% Find clusters in point cloud
+			[~, numClusters] = pcsegdist(pc, 0.1);
 
-			p_red = numel(x_red) / imsize;
-			p_purple = numel(x_purple) / imsize;
-
-			% Decide type of the table based on proportions
-			if p_red > 0.008
-				tableType = 2;
-			elseif p_purple > 0.002
+			% Determine table type based on clusters
+			if numClusters == 0
+				tableType = 1;
+			elseif numClusters == 1
 				tableType = 3;
 			else
-				tableType = 1;
+				tableType = 2;
 			end
 		end
 
