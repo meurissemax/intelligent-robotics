@@ -583,13 +583,37 @@ classdef RobotController < handle
 
 		function objectPos = analyzeObjects(~, data)
 			% Analyze data in order to find object and return the position
-			% of the object (if any).
+			% of the objects (if any).
 
-			% TO DO
-			plot3(data(1, :), data(3, :), data(2, :), '.b', 'MarkerSize', 7);
+			% Filter points
+			f = data(4, :) < 2 & data(2, :) > -0.04;
+			data = data(:, f);
 
-			% Set the object position
-			objectPos = [];
+			% Remove center point (robot itself)
+			f = data(4, :) ~= 0;
+			data = data(:, f);
+
+			% Convert data to point cloud object
+			pc = pointCloud([data(1, :)', data(3, :)', data(2, :)']);
+
+			% Find clusters in point cloud
+			[labels, numClusters] = pcsegdist(pc, 0.1);
+
+			% Initialize object positions
+			objectPos = zeros(1, 2);
+			objectIndex = 1;
+
+			% Find the center point of each cluster
+			for i = 1:numClusters
+				inlierIndices = find(labels == i);
+				cyl = select(pc, inlierIndices);
+
+				midPoint = sum(cyl.Location) / size(cyl.Location, 1);
+				midPoint = midPoint(1:2);
+
+				objectPos(objectIndex, :) = midPoint;
+				objectIndex = objectIndex + 1;
+			end
 		end
 
 		function relPos = toRelative(obj, absPos)
