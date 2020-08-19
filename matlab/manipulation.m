@@ -313,8 +313,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				graspPoints(end, :) = [];
 			end
 
+			% Get nearest point (around the table) to the grasp point
+			nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tableObjectsPos, tableObjectsRadius, 50);
+
 			% Check if robot is located at current grasp point
-			if robot.checkObjective(currentGraspPoint)
+			if robot.checkObjective(nearestGraspPoint)
 
 				% Update state
 				state = 'grasp-grasp';
@@ -322,7 +325,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Update state
 				previousState = state;
-				gotoObjective = currentGraspPoint;
+				gotoObjective = nearestGraspPoint;
 				state = 'goto';
 			end
 
@@ -332,7 +335,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Grasp the object
-			robot.grasp(currentGraspPoint);
+			robot.grasp(robot.toRelative(currentGraspPoint));
 
 			% Update the state
 			state = 'objective';

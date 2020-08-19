@@ -592,6 +592,13 @@ classdef RobotController < handle
 			objectPos = [];
 		end
 
+		function relPos = toRelative(obj, absPos)
+			% Convert an absolute position [x, y] to a relative position
+			% (relative to the robot).
+
+			relPos = obj.absPos - absPos;
+		end
+
 		function grasp(obj, objectPos)
 			% Grasp an object.
 
@@ -600,7 +607,7 @@ classdef RobotController < handle
 			vrchk(obj.vrep, res, true);
 
 			% Set the new position to the expected one for the gripper (predetermined value)
-			tpos = objectPos;
+			tpos = [objectPos, -0.02];
 
 			res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
 			vrchk(obj.vrep, res, true);
