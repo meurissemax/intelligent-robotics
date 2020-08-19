@@ -491,7 +491,7 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% Check the condition
-			if distNear < 0.6
+			if distNear < 0.5
 				near = true;
 			else
 				obj.drive();
@@ -554,36 +554,9 @@ classdef RobotController < handle
 			end
 		end
 
-		function tableType = analyzeTable(~, data)
-			% Analyze the input data to determine the type of the table.
-
-			% Filter points
-			f = data(4, :) < 2 & data(2, :) > -0.04;
-			data = data(:, f);
-
-			% Remove center point (robot itself)
-			f = data(4, :) ~= 0;
-			data = data(:, f);
-
-			% Convert data to point cloud object
-			pc = pointCloud([data(1, :)', data(3, :)', data(2, :)']);
-
-			% Find clusters in point cloud
-			[~, numClusters] = pcsegdist(pc, 0.1);
-
-			% Determine table type based on clusters
-			if numClusters == 0
-				tableType = 1;
-			elseif numClusters == 1
-				tableType = 3;
-			else
-				tableType = 2;
-			end
-		end
-
-		function objectPos = analyzeObjects(~, data)
-			% Analyze data in order to find object and return the position
-			% of the objects (if any).
+		function [tableType, objectPos] = analyzeTable(obj, data)
+			% Analyze the input data to determine the type of the
+			% table and the position of the objects (if any).
 
 			% Filter points
 			f = data(4, :) < 2 & data(2, :) > -0.04;
@@ -599,20 +572,40 @@ classdef RobotController < handle
 			% Find clusters in point cloud
 			[labels, numClusters] = pcsegdist(pc, 0.1);
 
+			% Determine table type based on clusters
+			if numClusters == 0
+				tableType = 1;
+			elseif numClusters == 1
+				tableType = 3;
+			else
+				tableType = 2;
+			end
+
 			% Initialize object positions
 			objectPos = zeros(1, 2);
 			objectIndex = 1;
 
-			% Find the center point of each cluster
-			for i = 1:numClusters
-				inlierIndices = find(labels == i);
-				cyl = select(pc, inlierIndices);
+			% Check if there are some clusters
+			if numClusters == 0
+				objectPos = [];
+			else
 
-				midPoint = sum(cyl.Location) / size(cyl.Location, 1);
-				midPoint = midPoint(1:2);
+				% Define translation between sensor ref and robot ref
+				sensorRef = [-0.0003, -0.25];
 
-				objectPos(objectIndex, :) = midPoint;
-				objectIndex = objectIndex + 1;
+				% Find the center point of each cluster
+				for i = 1:numClusters
+					inlierIndices = find(labels == i);
+					cyl = select(pc, inlierIndices);
+
+					midPoint = sum(cyl.Location) / size(cyl.Location, 1);
+					midPoint = midPoint(1:2);
+
+					midPoint(2) = -midPoint(2);
+
+					objectPos(objectIndex, :) = obj.absPos + midPoint + sensorRef;
+					objectIndex = objectIndex + 1;
+				end
 			end
 		end
 
@@ -620,7 +613,11 @@ classdef RobotController < handle
 			% Convert an absolute position [x, y] to a relative position
 			% (relative to the robot).
 
-			relPos = obj.absPos - absPos;
+			% Define translation between arm ref and robot ref
+			armRef = [-0.0001, 0.1662];
+
+			% Get relative position
+			relPos = obj.absPos - absPos - armRef;
 		end
 
 		function grasp(obj, objectPos)
@@ -630,14 +627,19 @@ classdef RobotController < handle
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 2, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res, true);
 
-			% Set the new position to the expected one for the gripper (predetermined value)
-			tpos = [objectPos, -0.02];
+			% Set the new position to the expected one for the gripper (predetermined value),
+			% position per position
+			tpos = zeros(size(objectPos));
 
-			res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
-			vrchk(obj.vrep, res, true);
+			for i = 1:numel(objectPos)
+				tpos(i) = objectPos(i);
 
-			% Wait long enough so that the tip is at the right position
-			pause(5);
+				res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
+				vrchk(obj.vrep, res, true);
+
+				% Wait long enough so that the tip is at the right position
+				pause(3);
+			end
 
 			% Remove the inverse kinematics (IK) mode so that joint angles can be set individually
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
@@ -650,13 +652,23 @@ classdef RobotController < handle
 			vrchk(obj.vrep, res, true);
 
 			% Wait long enough so that the tip is at the right position
-			pause(5);
+			pause(3);
 
 			% Open the gripper
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
 			% Make MATLAB wait for the gripper to be closed
+			pause(3);
+
+			% Reset the arm position
+			chooseAngle = [0, pi / 6, pi / 3, pi / 3, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+				vrchk(obj.vrep, res, true);
+			end
+
 			pause(3);
 		end
 
@@ -701,7 +713,7 @@ classdef RobotController < handle
 			pause(3);
 
 			% Open the gripper
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 1, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
 			pause(3);
