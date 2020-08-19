@@ -577,6 +577,8 @@ classdef RobotController < handle
 				tableType = 1;
 			elseif numClusters == 1
 				tableType = 3;
+
+				[labels, numClusters] = pcsegdist(pc, 0.005);
 			else
 				tableType = 2;
 			end
@@ -590,9 +592,6 @@ classdef RobotController < handle
 				objectPos = [];
 			else
 
-				% Define translation between sensor ref and robot ref
-				sensorRef = [-0.0003, -0.25];
-
 				% Find the center point of each cluster
 				for i = 1:numClusters
 					inlierIndices = find(labels == i);
@@ -603,66 +602,57 @@ classdef RobotController < handle
 
 					midPoint(2) = -midPoint(2);
 
-					objectPos(objectIndex, :) = obj.absPos + midPoint + sensorRef;
+					objectPos(objectIndex, :) = obj.absPos + midPoint;
 					objectIndex = objectIndex + 1;
 				end
 			end
 		end
 
-		function relPos = toRelative(obj, absPos)
-			% Convert an absolute position [x, y] to a relative position
-			% (relative to the robot).
-
-			% Define translation between arm ref and robot ref
-			armRef = [-0.0001, 0.1662];
-
-			% Get relative position
-			relPos = obj.absPos - absPos - armRef;
-		end
-
-		function grasp(obj, objectPos)
+		function grasp(obj)
 			% Grasp an object.
 
-			% Set the inverse kinematics (IK) mode to position and orientation (km_mode = 2)
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 2, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res, true);
-
-			% Set the new position to the expected one for the gripper (predetermined value),
-			% position per position
-			tpos = zeros(size(objectPos));
-
-			for i = 1:numel(objectPos)
-				tpos(i) = objectPos(i);
-
-				res = obj.vrep.simxSetObjectPosition(obj.id, obj.h.ptarget, obj.h.armRef, tpos, obj.vrep.simx_opmode_oneshot);
-				vrchk(obj.vrep, res, true);
-
-				% Wait long enough so that the tip is at the right position
-				pause(3);
-			end
-
-			% Remove the inverse kinematics (IK) mode so that joint angles can be set individually
+			% Remove inverse kinematic mode (to be sure)
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res, true);
 
-			% Set the new gripper angle
-			tangle = 0;
+			% Intermediate position 1
+			chooseAngle = [0, pi / 4, -pi / 2, 0, 0];
 
-			res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(5), tangle, obj.vrep.simx_opmode_oneshot);
-			vrchk(obj.vrep, res, true);
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
 
-			% Wait long enough so that the tip is at the right position
+			pause(3);
+
+			% Intermediate position 2
+			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+				vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Intermediate position 3
+			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
+
 			pause(3);
 
 			% Open the gripper
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
-			% Make MATLAB wait for the gripper to be closed
 			pause(3);
 
 			% Reset the arm position
-			chooseAngle = [0, pi / 6, pi / 3, pi / 3, 0];
+			chooseAngle = [0, pi / 6, pi / 4, pi / 3, 0];
 
 			for i = 1:numel(chooseAngle)
 				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);

@@ -280,11 +280,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			if robot.checkObjective(tableObjectsAngle)
 
 				% Update state
-				if isempty(currentGraspPoint)
-					state = 'grasp-position';
-				else
-					state = 'grasp-forward';
-				end
+				state = 'grasp-position';
 			else
 
 				% Update state
@@ -330,13 +326,34 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			if robot.checkObjective(nearestGraspPoint)
 
 				% Update state
-				state = 'grasp';
+				state = 'grasp-align';
 			else
 
 				% Update state
 				previousState = state;
 				gotoObjective = nearestGraspPoint;
 				state = 'goto';
+			end
+
+		elseif strcmp(state, 'grasp-align')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle to be aligned with the table
+			objectAngle = robot.getAngleTo(currentGraspPoint);
+
+			% Check if robot is aligned with the table
+			if robot.checkObjective(objectAngle)
+
+				% Update state
+				state = 'grasp-forward';
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = objectAngle;
+				state = 'rotate';
 			end
 
 		elseif strcmp(state, 'grasp-forward')
@@ -381,7 +398,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Grasp the object
-			robot.grasp([robot.toRelative(currentGraspPoint), 0.2]);
+			robot.grasp();
 
 			% Update the state
 			state = 'objective';
