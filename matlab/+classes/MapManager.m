@@ -52,6 +52,20 @@ classdef MapManager < handle & matlab.mixin.Copyable
 	%% Methods %%
 	%%%%%%%%%%%%%
 
+	methods (Access = protected)
+		function cp = copyElement(obj)
+			% This function is call during the 'copy' function. We
+			% override it to properly perform a deep copy of this
+			% class.
+
+			% Shallow copy the object
+			cp = copyElement@matlab.mixin.Copyable(obj);
+
+			% Copy the occupancy map
+			cp.map = copy(obj.map);
+		end
+	end
+
 	methods (Access = public)
 		function obj = MapManager(mapWidth, mapHeight, mapPrec, navigationDifficulty)
 			% Constructor of the class. It sets the dimensions and the
@@ -72,12 +86,6 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% Save the difficulty
 			obj.navigationDifficulty = navigationDifficulty;
-		end
-
-		function occMat = getOccupancyMatrix(obj)
-			% Get the occupancy matrix corresponding to the occupancy map.
-
-			occMat = occupancyMatrix(obj.map, 'ternary');
 		end
 
 		function setPoints(obj, points, value)
@@ -554,6 +562,12 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					keep = false;
 				end
 			end
+		end
+
+		function occMat = getOccupancyMatrix(obj)
+			% Get the occupancy matrix corresponding to the occupancy map.
+
+			occMat = occupancyMatrix(obj.map, 'ternary');
 		end
 
 		function xy = toCartesian(obj, ij)

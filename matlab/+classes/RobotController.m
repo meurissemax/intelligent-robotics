@@ -765,9 +765,6 @@ classdef RobotController < handle
 			% Get the true position
 			truePos = obj.getRelativePositionFromGPS() - obj.initPos;
 
-			% Update the estimated position
-			obj.estimatedPos = truePos;
-
 			% If we are not in manipulation milestone
 			if ~manipulation
 
@@ -824,6 +821,9 @@ classdef RobotController < handle
 				% Assign the corrected map
 				updatedMap = copy(correctMap);
 			end
+
+			% Update the estimated position
+			obj.estimatedPos = truePos;
 		end
 	end
 end
