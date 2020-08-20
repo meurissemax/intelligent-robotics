@@ -766,7 +766,7 @@ classdef RobotController < handle
 			pause(3);
 
 			% Reset the arm position
-			chooseAngle = [0, pi / 6, pi / 4, pi / 3, 0];
+			chooseAngle = [0, 0.74, pi / 4, pi / 2, 0];
 
 			for i = 1:numel(chooseAngle)
 				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
