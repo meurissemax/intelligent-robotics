@@ -830,9 +830,6 @@ classdef RobotController < handle
 			% If we are not in manipulation milestone
 			if ~manipulation
 
-				% Reset scan index
-				obj.scanIndex = 1;
-
 				% Detect deviation of our position from that one
 				devPos = obj.estimatedPos - truePos;
 

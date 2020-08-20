@@ -395,7 +395,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Check if object is too far for the robot (due
 				% to an error or something else before)
-				if objectDist > 1.2
+				if objectDist > 0.6
 
 					% Update state
 					graspPoints = [];
@@ -569,7 +569,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'drop-forward')
 
 			% Move the robot forward until it is near the table
-			if robot.forward('in', 0.5)
+			if robot.forward('in', 0.6)
 
 				% Update state
 				state = 'drop-half';
