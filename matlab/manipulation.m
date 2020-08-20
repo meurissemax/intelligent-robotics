@@ -59,6 +59,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Initialize variable for 'grasp' state
 	graspPoints = [];
 	currentGraspPoint = [];
+	graspIncrement = false;
 
 	% Initialize variables for 'drop' state
 	dropPoints = [];
@@ -274,75 +275,83 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Stop the robot
 			robot.stop();
 
-			% Get angle to be aligned with the table
-			tableObjectsAngle = robot.getAngleTo(tablesCenter(currentDifficulty));
-
-			% Check if robot is aligned with the table
-			if robot.checkObjective(tableObjectsAngle)
-
-				% Update state
-				state = 'grasp-position';
-			else
-
-				% Update state
-				previousState = state;
-				rotateObjective = tableObjectsAngle;
-				state = 'rotate';
-			end
-
-		elseif strcmp(state, 'grasp-position')
-
-			% Stop the robot
-			robot.stop();
-
 			% Check if a current point is defined
 			if isempty(currentGraspPoint)
 
 				% Check if objects positions have already been defined
 				if isempty(graspPoints)
 
-					% Take a 3D point cloud
-					pointCloud = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
+					% Update state
+					state = 'grasp-analyze';
+				else
 
-					% Get object positions
-					[~, graspPoints] = robot.analyzeTable(pointCloud);
-
-					% Check if manipulation is done
-					if isempty(graspPoints)
-
-						% Check if robot has to do the 'hard' table
-						if strcmp(difficulty, 'hard') && ~strcmp(currentDifficulty, 'hard')
-							currentDifficulty = 'hard';
-							state = 'objects';
-
-							continue;
-						else
-							fprintf('No (more) object available, manipulation is done !\n');
-
-							return;
-						end
-					end
+					% Pop a grasp position
+					currentGraspPoint = graspPoints(end, :);
+					graspPoints(end, :) = [];
 				end
+			else
 
-				% Pop a grasp position
-				currentGraspPoint = graspPoints(end, :);
-				graspPoints(end, :) = [];
+				% Get nearest point (around the table) to the grasp point
+				nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 40);
+
+				% Check if robot is located at current grasp point
+				if robot.checkObjective(nearestGraspPoint)
+
+					% Update state
+					state = 'grasp-align';
+				else
+
+					% Update state
+					previousState = state;
+					gotoObjective = nearestGraspPoint;
+					state = 'goto';
+				end
 			end
 
-			% Get nearest point (around the table) to the grasp point
-			nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 50);
+		elseif strcmp(state, 'grasp-analyze')
 
-			% Check if robot is located at current grasp point
-			if robot.checkObjective(nearestGraspPoint)
+			% Stop the robot
+			robot.stop();
 
-				% Update state
-				state = 'grasp-align';
+			% Get angle to be aligned with the table
+			tableObjectsAngle = robot.getAngleTo(tablesCenter(currentDifficulty));
+
+			% Check if robot is aligned with the table
+			if robot.checkObjective(tableObjectsAngle)
+
+				% Take a 3D point cloud
+				pointCloud = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
+
+				% Get object positions
+				[~, graspPoints] = robot.analyzeTable(pointCloud);
+
+				% Check if manipulation is done
+				if isempty(graspPoints)
+
+					% Check if robot has to do the 'hard' table
+					if strcmp(difficulty, 'hard') && ~strcmp(currentDifficulty, 'hard')
+						currentDifficulty = 'hard';
+						state = 'objects';
+
+						graspPoints = tablesObjects(currentDifficulty);
+
+						continue;
+					else
+						fprintf('No (more) object available, manipulation is done !\n');
+
+						return;
+					end
+				else
+
+					% Update state
+					state = 'grasp';
+				end
 			else
 
 				% Update state
 				previousState = state;
-				gotoObjective = nearestGraspPoint;
-				state = 'goto';
+				rotateObjective = tableObjectsAngle;
+				state = 'rotate';
 			end
 
 		elseif strcmp(state, 'grasp-align')
@@ -357,7 +366,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			if robot.checkObjective(objectAngle)
 
 				% Update state
-				state = 'grasp-forward';
+				state = 'grasp-adjust';
 			else
 
 				% Update state
@@ -366,13 +375,63 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				state = 'rotate';
 			end
 
-		elseif strcmp(state, 'grasp-forward')
+		elseif strcmp(state, 'grasp-adjust')
 
-			% Move the robot forward until it is near the table
-			if robot.forward()
+			% Move forward the robot
+			if robot.forward('in', 0.6)
 
-				% Update state
-				state = 'grasp-half';
+				% Stop the robot (if needed)
+				robot.stop();
+
+				% Take a 3D point cloud
+				if graspIncrement
+					pc = robot.take3DPointCloud((-pi / 8):(pi / 16):(pi / 8));
+				else
+					pc = robot.take3DPointCloud((-pi / 7):(pi / 32):(pi / 7));
+				end
+
+				% Analyze the point cloud
+				[aligned, objectDist] = robot.adjustPosition(pc);
+
+				% Check if object is too far for the robot (due
+				% to an error or something else before)
+				if objectDist > 1.2
+
+					% Update state
+					graspPoints = [];
+					currentGraspPoint = [];
+
+					state = 'grasp';
+				else
+
+					if aligned ~= 0
+
+						% Update state
+						previousState = state;
+						rotateObjective = robot.orientation(3) + aligned;
+						state = 'rotate';
+					else
+
+						% Set the flag to true
+						graspIncrement = true;
+
+						% Calculate the displacement
+						displacement = objectDist - 0.32;
+
+						if abs(displacement) < 0.02
+
+							% Reset the flag
+							graspIncrement = false;
+
+							% Update state
+							state = 'grasp-half';
+						else
+
+							% Move the robot a little bit
+							robot.increment(displacement);
+						end
+					end
+				end
 			end
 
 		elseif strcmp(state, 'grasp-half')
@@ -408,7 +467,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Grasp the object
-			robot.grasp();
+			robot.arm('grasp');
 
 			% Update the state
 			state = 'objective';
@@ -465,7 +524,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% If there is no more drop points, generate them
 				if isempty(dropPoints)
-					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'));
+					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'), 8);
 				end
 
 				% Pop the drop point
@@ -510,7 +569,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'drop-forward')
 
 			% Move the robot forward until it is near the table
-			if robot.forward()
+			if robot.forward('in', 0.5)
 
 				% Update state
 				state = 'drop-half';
@@ -549,7 +608,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Drop the grasped object
-			robot.drop();
+			robot.arm('drop');
 
 			% Reset the flag
 			currentDropPoint = [];

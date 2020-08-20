@@ -471,20 +471,23 @@ classdef RobotController < handle
 			end
 		end
 
-		function near = forward(obj, varargin)
-			% Move the robot forward until the robot is near an
-			% obstacle. It returns a flag that indicates if robot
-			% is near to the obstacle.
-
-			% Check if a maximum distance has been set
-			if nargin > 1
-				maxDist = varargin{1};
-			else
-				maxDist = 0.5;
-			end
+		function near = forward(obj, direction, maxDist)
+			% Move the robot forward until it is under a distance
+			% to an obstacle. It returns a flag that indicates if
+			% robot is near to the obstacle.
 
 			% By default, robot is not near the obstacle
 			near = false;
+
+			% Set velocities of the robot
+			if strcmp(direction, 'in')
+				obj.forwBackVel = -1;
+			else
+				obj.forwBackVel = 1;
+			end
+
+			obj.leftRightVel = 0;
+			obj.rotVel = 0;
 
 			% Get point of Hokuyo to check
 			distPts = round(size(obj.inPts, 1) * 0.5);
@@ -492,16 +495,55 @@ classdef RobotController < handle
 			% Distance to nearest element in front
 			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
 
-			% Set velocities of the robot
-			obj.forwBackVel = -1;
-			obj.leftRightVel = 0;
-			obj.rotVel = 0;
-
 			% Check the condition
 			if distNear < maxDist
 				near = true;
 			else
 				obj.drive();
+			end
+		end
+
+		function increment(obj, displacement)
+			% Move the robot forward a little bit.
+
+			% Set robot velocities
+			obj.forwBackVel = -sign(displacement);
+			obj.leftRightVel = 0;
+			obj.rotVel = 0;
+
+			% Initialize previous wheel angles
+			prev = zeros(1, 4);
+
+			% Initialize displacement
+			fb = 0;
+
+			% Move the robot
+			while fb < abs(displacement)
+
+				% Move the robot
+				obj.drive();
+
+				% Get angular positions of the wheels
+				wheelAngles = zeros(1, 4);
+
+				for i = 1:numel(wheelAngles)
+					[~, wheelAngles(i)] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(i), obj.vrep.simx_opmode_buffer);
+				end
+
+				% If first entry in the loop
+				if isempty(prev)
+					prev = wheelAngles;
+				end
+
+				% Angular difference in the time considered
+				dw = wheelAngles - prev;
+				dw = wrapToPi(dw);
+
+				% Angular speeds to get displacement (values determined experimentally)
+				fb = fb + abs(-0.25 * (sum(dw)) * 0.05);
+
+				% Let time to the robot to move
+				pause(0.15);
 			end
 		end
 
@@ -605,18 +647,73 @@ classdef RobotController < handle
 					cyl = select(pc, inlierIndices);
 
 					midPoint = sum(cyl.Location) / size(cyl.Location, 1);
-					midPoint = midPoint(1:2);
 
-					midPoint(2) = -midPoint(2);
+					if numel(midPoint) > 1
+						midPoint = midPoint(1:2);
 
-					objectPos(objectIndex, :) = obj.absPos + midPoint;
-					objectIndex = objectIndex + 1;
+						midPoint(2) = -midPoint(2);
+
+						objectPos(objectIndex, :) = obj.absPos + midPoint;
+						objectIndex = objectIndex + 1;
+					end
 				end
 			end
 		end
 
-		function grasp(obj)
-			% Grasp an object.
+		function [aligned, minDist] = adjustPosition(obj, data)
+			% Analyze the data 'data' in order to determine if
+			% the robot is aligned with the nearest object
+			% visible in data.
+
+			% Get objects center positions
+			[~, objectPos] = obj.analyzeTable(data);
+
+			% Get relative position
+			objectPos = objectPos - obj.absPos;
+
+			% Get the position of the nearest object
+			minDist = Inf;
+			minIndex = 1;
+
+			for i = 1:size(objectPos, 1)
+				objectDist = pdist2([0, 0], objectPos(i, :), 'euclidean');
+
+				if objectDist < minDist
+					minDist = objectDist;
+					minIndex = i;
+				end
+			end
+
+			% Check if object is aligned
+			xCoord = objectPos(minIndex, 1);
+
+			if xCoord > 0.1
+				aligned = 5 * (pi / 180);
+			elseif xCoord > 0.02
+				aligned = 3 * (pi / 180);
+			elseif xCoord > 0.008
+				aligned = 1.5 * (pi / 180);
+			elseif xCoord < -0.1
+				aligned = -5 * (pi / 180);
+			elseif xCoord < -0.02
+				aligned = -3 * (pi / 180);
+			elseif xCoord < -0.008
+				aligned = -1.5 * (pi / 180);
+			else
+				aligned = 0;
+			end
+		end
+
+		function arm(obj, action)
+			% Use the arm of the robot. The robot will grasp or drop an element
+			% depending on the value of 'action'.
+
+			% Set the action for the gripper
+			if strcmp(action, 'grasp')
+				gripperAction = 0;
+			else
+				gripperAction = 1;
+			end
 
 			% Remove inverse kinematic mode (to be sure)
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
@@ -652,71 +749,24 @@ classdef RobotController < handle
 
 			pause(3);
 
-			% Open the gripper
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 0, obj.vrep.simx_opmode_oneshot_wait);
+			% Intermediate position 4
+			chooseAngle = [0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0];
+
+			for i = 1:numel(chooseAngle)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+                vrchk(obj.vrep, res, true);
+			end
+
+			pause(3);
+
+			% Use the gripper
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', gripperAction, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
 			pause(3);
 
 			% Reset the arm position
 			chooseAngle = [0, pi / 6, pi / 4, pi / 3, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-				vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-		end
-
-		function drop(obj)
-			% Drop the grasped object. The drop movement is always
-			% the same. There are intermediate positions to be sure
-			% that the arm displacements will not be too quick and
-			% so dangerous for the object.
-
-			% Remove inverse kinematic mode (to be sure)
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res, true);
-
-			% Intermediate position 1
-			chooseAngle = [0, pi / 4, -pi / 2, 0, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
-			% Intermediate position 2
-			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-				vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
-			% Intermediate position 3
-			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
-			% Open the gripper
-			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 1, obj.vrep.simx_opmode_oneshot_wait);
-			vrchk(obj.vrep, res);
-
-			pause(3);
-
-			% Reset the arm position
-			chooseAngle = [0, 0, pi / 2, pi / 2, 0];
 
 			for i = 1:numel(chooseAngle)
 				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
