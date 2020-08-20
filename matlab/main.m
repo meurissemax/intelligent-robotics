@@ -17,10 +17,10 @@ function main()
 	mapPrec = 5;
 
 	% Navigation difficulty ('easy', 'medium')
-	navigationDifficulty = 'easy';
+	navDifficulty = 'easy';
 
 	% Manipulation difficulty ('easy' or 'hard')
-	manipulationDifficulty = 'easy';
+	manDifficulty = 'easy';
 
 	% Timestep of the simulator
 	timestep = 0.05;
@@ -74,8 +74,8 @@ function main()
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	% Map and robot instance
-	map = classes.MapManager(mapWidth, mapHeight, mapPrec, navigationDifficulty);
-	robot = classes.RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navigationDifficulty);
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec, navDifficulty);
+	robot = classes.RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navDifficulty);
 
 	% Initialize the mesh grid (for the data retrieving
 	% of the Hokuyo)
@@ -87,7 +87,7 @@ function main()
 	%%%%%%%%%%%%%%%%
 
 	navigation(vrep, id, timestep, map, robot, sceneName);
-	manipulation(vrep, id, timestep, map, robot, manipulationDifficulty);
+	manipulation(vrep, id, timestep, map, robot, manDifficulty);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%

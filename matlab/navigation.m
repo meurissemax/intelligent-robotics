@@ -12,7 +12,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 	fprintf('\n**************\n* Navigation *\n**************\n\n');
 
 	% Set the initial position of the robot
-	robot.setInitPos([map.mapWidth, map.mapHeight]);
+	robot.setInitPos([map.width, map.height]);
 
 	% Set the position of the robot and his neighborhood
 	% (radius of 2) to 0 (free position)

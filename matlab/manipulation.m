@@ -28,7 +28,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Load the map and set initial position of the robot, if needed
 	if nargin > 6
 		map.load(varargin{1});
-		robot.setInitPos([map.mapWidth, map.mapHeight]);
+		robot.setInitPos([map.width, map.height]);
 	end
 
 	% Initialize elapsed time for data update

@@ -10,40 +10,32 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 	properties (Access = public)
 		% Dimensions of the map
-		mapWidth
-		mapHeight
+		width
+		height
 
-		% Precision of the map
-		mapPrec
-
-		% Representation of the map (occupancy map)
-		map
-
-		% Dimensions of the matrix representation (occupancy matrix)
-		matrixWidth
-		matrixHeight
-
-		% Tables information (map coordinates)
-		tablesCenterPos
+		% Tables information
+		tablesCenter
 		tablesRadius
-
-		% Types :
-		%	- 0 : undefined
-		%	- 1 : empty
-		%	- 2 : easy
-		%	- 3 : hard
-		tablesType
 	end
 
 	properties (Access = private)
-		% The navigation difficulty
-		navigationDifficulty
+		% Representation of the map
+		map
+
+		% Precision of the map
+		prec
+
+		% Dimensions of the matrix representation
+		matrixWidth
+		matrixHeight
+
+		% Navigation difficulty
+		navDifficulty
 
 		% Inflation factor
-		inflatedFact = 0.6;
+		infFact = 0.6;
 
-		% Possible connection distance between points for
-		% path algorithm
+		% Connection distance between points for path algorithm
 		pathDist = 10;
 	end
 
@@ -52,31 +44,16 @@ classdef MapManager < handle & matlab.mixin.Copyable
 	%% Methods %%
 	%%%%%%%%%%%%%
 
-	methods (Access = protected)
-		function cp = copyElement(obj)
-			% This function is call during the 'copy' function. We
-			% override it to properly perform a deep copy of this
-			% class.
-
-			% Shallow copy the object
-			cp = copyElement@matlab.mixin.Copyable(obj);
-
-			% Copy the occupancy map
-			cp.map = copy(obj.map);
-		end
-	end
-
 	methods (Access = public)
-		function obj = MapManager(mapWidth, mapHeight, mapPrec, navigationDifficulty)
-			% Constructor of the class. It sets the dimensions and the
-			% precision of the map and instantiate the occupancy map.
+		function obj = MapManager(mapWidth, mapHeight, mapPrec, navDifficulty)
+			% Constructor of the class.
 
-			% Set the dimensions
-			obj.mapWidth = mapWidth;
-			obj.mapHeight = mapHeight;
-			obj.mapPrec = mapPrec;
+			% Set dimensions and precision
+			obj.width = mapWidth;
+			obj.height = mapHeight;
+			obj.prec = mapPrec;
 
-			% Set the matrix dimensions
+			% Set matrix dimensions
 			obj.matrixWidth = mapWidth * 2 * mapPrec;
 			obj.matrixHeight = mapHeight * 2 * mapPrec;
 
@@ -84,8 +61,8 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% we do not know where the robot starts in the map)
 			obj.map = occupancyMap(mapWidth * 2, mapHeight * 2, mapPrec);
 
-			% Save the difficulty
-			obj.navigationDifficulty = navigationDifficulty;
+			% Save the navigation difficulty
+			obj.navDifficulty = navDifficulty;
 		end
 
 		function setPoints(obj, points, value)
@@ -99,7 +76,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% the point detection.
 
 			if value == 0
-				if strcmp(obj.navigationDifficulty, 'easy')
+				if strcmp(obj.navDifficulty, 'easy')
 					occVal = getOccupancy(obj.map, points);
 					points = points(occVal < 0.9, :);
 				end
@@ -127,7 +104,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			yLimits = obj.map.YWorldLimits;
 
 			% Set the neighborhood of the point
-			dx = 1 / obj.mapPrec;
+			dx = 1 / obj.prec;
 
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
@@ -148,18 +125,18 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% point.
 
 			% Transform points to have matrix coordinates
-			pos = round(pos .* obj.mapPrec);
-			from = round(from .* obj.mapPrec);
+			pos = round(pos .* obj.prec);
+			from = round(from .* obj.prec);
 
 			% Inflate the occupancy matrix
 			mapInflated = copy(obj.map);
-			inflate(mapInflated, obj.inflatedFact);
+			inflate(mapInflated, obj.infFact);
 			occMatInf = occupancyMatrix(mapInflated, 'ternary');
 
 			% Get next point to explore
 			if nargin > 3
 				nextPoint = varargin{1};
-				nextPoint = round(nextPoint .* obj.mapPrec);
+				nextPoint = round(nextPoint .* obj.prec);
 				nextPoint = obj.toMatrix(nextPoint);
 			else
 				nextPoint = obj.getNextPointToExplore(obj.toMatrix(from), occMatInf);
@@ -204,7 +181,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			pathList = imported.astar(startPoint(2), startPoint(1), occMatInf, goalPoint, obj.pathDist);
 
 			% If no path can be found, re try with more flexible map (less inflate)
-			reduceInflate = obj.inflatedFact - 0.1;
+			reduceInflate = obj.infFact - 0.1;
 
 			while pathList(1) == Inf
 				mapInflated = copy(obj.map);
@@ -266,19 +243,15 @@ classdef MapManager < handle & matlab.mixin.Copyable
 				radii = round(radii ./ resizeFactor);
 
 				% Transform to map coordinates system
-				obj.tablesCenterPos = obj.matrixToMap(centers);
-				obj.tablesRadius = radii ./ obj.mapPrec;
-
-				% Set types
-				obj.tablesType(1, 1:numel(radii)) = 0;
+				obj.tablesCenter = obj.matrixToMap(centers);
+				obj.tablesRadius = radii ./ obj.prec;
 
 			% If no table has been found
 			else
 
 				% Set empty arrays
-				obj.tablesCenterPos = [];
+				obj.tablesCenter = [];
 				obj.tablesRadius = [];
-				obj.tablesType = [];
 			end
 		end
 
@@ -365,7 +338,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% Points detected by Hokuyo
 			if nargin > 3
 				hokuyo = varargin{3};
-				hokuyo = round(hokuyo .* obj.mapPrec);
+				hokuyo = round(hokuyo .* obj.prec);
 
 				plot(hokuyo(:, 1), hokuyo(:, 2), '.c', 'MarkerSize', 10);
 				hold on;
@@ -380,7 +353,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% Position of the robot
 			if nargin > 1
 				pos = varargin{1};
-				pos = round(pos .* obj.mapPrec);
+				pos = round(pos .* obj.prec);
 
 				plot(pos(1), pos(2), '.k', 'MarkerSize', 20);
 				hold on;
@@ -409,11 +382,11 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Tables positions
-			if ~isempty(obj.tablesCenterPos)
+			if ~isempty(obj.tablesCenter)
 				for i = 1:numel(obj.tablesRadius)
-					xy = obj.tablesCenterPos(i, :) * obj.mapPrec;
+					xy = obj.tablesCenter(i, :) * obj.prec;
 
-					viscircles(xy, obj.tablesRadius(i) * obj.mapPrec, 'Color', 'black', 'LineWidth', 3);
+					viscircles(xy, obj.tablesRadius(i) * obj.prec, 'Color', 'black', 'LineWidth', 3);
 					hold on;
 				end
 			end
@@ -448,15 +421,15 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			obj.map = exportMap;
 
 			% Update information of the object
-			obj.mapPrec = exportMap.Resolution;
+			obj.prec = exportMap.Resolution;
 
 			resizeFactor = 2 * exportMap.Resolution;
 
-			obj.mapWidth = exportMap.GridSize(1) / resizeFactor;
-			obj.mapHeight = exportMap.GridSize(2) / resizeFactor;
+			obj.width = exportMap.GridSize(1) / resizeFactor;
+			obj.height = exportMap.GridSize(2) / resizeFactor;
 
-			obj.matrixWidth = obj.mapWidth * 2 * obj.mapPrec;
-			obj.matrixHeight = obj.mapHeight * 2 * obj.mapPrec;
+			obj.matrixWidth = obj.width * 2 * obj.prec;
+			obj.matrixHeight = obj.height * 2 * obj.prec;
 		end
 
 		function mapPoint = matrixToMap(obj, matrixPoint)
@@ -468,13 +441,27 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			mapPoint = obj.toCartesian(matrixPoint);
 
 			% To occupancy map coordinates
-			mapPoint = round(mapPoint ./ obj.mapPrec, 1);
+			mapPoint = round(mapPoint ./ obj.prec, 1);
+		end
+	end
+
+	methods (Access = protected)
+		function cp = copyElement(obj)
+			% This function is call during the 'copy' function. We
+			% override it to properly perform a deep copy of this
+			% class.
+
+			% Shallow copy the object
+			cp = copyElement@matlab.mixin.Copyable(obj);
+
+			% Copy the occupancy map
+			cp.map = copy(obj.map);
 		end
 	end
 
 	methods (Access = private)
 		function nextPoint = getNextPointToExplore(obj, pos, occMat)
-			% Get the next unexplored point (in the occupanct
+			% Get the next unexplored point (in the occupancy
 			% matrix 'occMat') of the map to visit.
 
 			% We get the occupancy matrix size

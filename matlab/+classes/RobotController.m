@@ -27,8 +27,7 @@ classdef RobotController < handle
 		id
 		h
 
-		% Precision of the map where the robot
-		% will stand
+		% Precision of the map where the robot will stand
 		mapPrec
 
 		% Initial position of the robot
@@ -43,13 +42,14 @@ classdef RobotController < handle
 		leftRightVel = 0;
 		rotVel = 0;
 
-		% Velocity multipliers
+		% Velocities multipliers
 		forwBackVelFact = 5;
+		leftRightVelFact = 3;
 		rotVelFact = 1.5;
 
 		% Movements tolerances
-		movPrecision = 0.25;
-		rotPrecision = 0.01;
+		movPrec = 0.25;
+		rotPrec = 0.01;
 
 		% Parameter when the robot is near an obstacle
 		nearTresh = 0.45;
@@ -57,7 +57,7 @@ classdef RobotController < handle
 		nearCounter = 0;
 
 		% Navigation difficulty
-		navigationDifficulty
+		navDifficulty
 
 		%%%%%%%%%%%%
 		% Odometry %
@@ -95,7 +95,7 @@ classdef RobotController < handle
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navigationDifficulty)
+		function obj = RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navDifficulty)
 			% Constructor of the class.
 
 			% Simulator parameters
@@ -112,7 +112,7 @@ classdef RobotController < handle
 			obj.scans = cell(obj.itBetScan, 5);
 
 			% Navigation difficulty
-			obj.navigationDifficulty = navigationDifficulty;
+			obj.navDifficulty = navDifficulty;
 		end
 
 		function setInitPos(obj, mapDimensions)
@@ -125,7 +125,7 @@ classdef RobotController < handle
 
 			% We have access to GPS for position and sensor for orientation.
 
-			if strcmp(obj.navigationDifficulty, 'easy')
+			if strcmp(obj.navDifficulty, 'easy')
 				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 				obj.orientation = obj.getOrientationFromSensor();
 
@@ -136,7 +136,7 @@ classdef RobotController < handle
 			% We do not have constantly access to GPS (only each X minutes) for
 			% position but we have sensor for orientation.
 
-			elseif strcmp(obj.navigationDifficulty, 'medium')
+			elseif strcmp(obj.navDifficulty, 'medium')
 				obj.initPos = obj.getRelativePositionFromGPS() - mapDimensions;
 				obj.orientation = obj.getOrientationFromSensor();
 
@@ -183,14 +183,14 @@ classdef RobotController < handle
 			% Milestone 1. a) %
 			%%%%%%%%%%%%%%%%%%%
 
-			if strcmp(obj.navigationDifficulty, 'easy')
+			if strcmp(obj.navDifficulty, 'easy')
 				obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
 
 			%%%%%%%%%%%%%%%%%%%
 			% Milestone 1. b) %
 			%%%%%%%%%%%%%%%%%%%
 
-			elseif strcmp(obj.navigationDifficulty, 'medium')
+			elseif strcmp(obj.navDifficulty, 'medium')
 
 				%%%%%%%%%%%%
 				% Odometry %
@@ -312,7 +312,7 @@ classdef RobotController < handle
 			obj.inPts = transpose([obj.inPts(1, :); obj.inPts(2, :)]);
 
 			% Save the scans to correct them later
-			if ~strcmp(obj.navigationDifficulty, 'easy') && ~manipulation
+			if ~strcmp(obj.navDifficulty, 'easy') && ~manipulation
 				obj.scans{obj.scanIndex, 1} = in;
 				obj.scans{obj.scanIndex, 2} = pts;
 				obj.scans{obj.scanIndex, 3} = cts;
@@ -387,14 +387,14 @@ classdef RobotController < handle
 
 			if rotation
 				distObj = abs(angdiff(objective, obj.orientation(3)));
-				hasAccCurrentObj = distObj < obj.rotPrecision;
+				hasAccCurrentObj = distObj < obj.rotPrec;
 			else
 
-				% Small trick to adapt the 'gotoObjective'
+				% Small trick to adapt the objective of the path generated
 				objective = round(objective .* obj.mapPrec) ./ obj.mapPrec;
 
 				distObj = [abs(obj.absPos(1) - objective(1)), abs(obj.absPos(2) - objective(2))];
-				hasAccCurrentObj = sum(distObj < obj.movPrecision) == numel(distObj);
+				hasAccCurrentObj = sum(distObj < obj.movPrec) == numel(distObj);
 			end
 		end
 
@@ -829,6 +829,9 @@ classdef RobotController < handle
 
 			% Update the estimated position
 			obj.estimatedPos = truePos;
+
+			% Update the true position
+			obj.absPos = obj.estimatedPos;
 		end
 	end
 end
