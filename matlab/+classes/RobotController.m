@@ -837,7 +837,10 @@ classdef RobotController < handle
 				devPos = obj.estimatedPos - truePos;
 
 				% Increment of deviation at each step
-				incDev = devPos ./ obj.itBetScan;
+				incDev = devPos ./ (obj.scanIndex - 1);
+
+				% Reset scan index
+				obj.scanIndex = 1;
 
 				% Updating all scans from the 'itBetScan' previous iterations
 				i = 1;
