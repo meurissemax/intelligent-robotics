@@ -471,10 +471,17 @@ classdef RobotController < handle
 			end
 		end
 
-		function near = forward(obj)
+		function near = forward(obj, varargin)
 			% Move the robot forward until the robot is near an
 			% obstacle. It returns a flag that indicates if robot
 			% is near to the obstacle.
+
+			% Check if a maximum distance has been set
+			if nargin > 1
+				maxDist = varargin{1};
+			else
+				maxDist = 0.5;
+			end
 
 			% By default, robot is not near the obstacle
 			near = false;
@@ -491,7 +498,7 @@ classdef RobotController < handle
 			obj.rotVel = 0;
 
 			% Check the condition
-			if distNear < 0.5
+			if distNear < maxDist
 				near = true;
 			else
 				obj.drive();
@@ -574,17 +581,17 @@ classdef RobotController < handle
 
 			% Determine table type based on clusters
 			if numClusters == 0
-				tableType = 1;
-			elseif numClusters == 1
-				tableType = 3;
+				tableType = 'empty';
+			elseif numClusters > 1
+				tableType = 'easy';
+			else
+				tableType = 'hard';
 
 				[labels, numClusters] = pcsegdist(pc, 0.005);
-			else
-				tableType = 2;
 			end
 
 			% Initialize object positions
-			objectPos = zeros(1, 2);
+			objectPos = zeros(numClusters, 2);
 			objectIndex = 1;
 
 			% Check if there are some clusters

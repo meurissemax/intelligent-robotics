@@ -255,10 +255,17 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 		end
 
-		function points = aroundTable(~, center, radius, number)
-			% Generate 'number' points equally spaced around a
-			% table centered at 'center' position and with a
-			% radius of 'radius'.
+		function points = aroundTable(~, center, radius, varargin)
+			% Generate 'number' (varargin 1) points equally spaced
+			% around a table centered at 'center' position and with
+			% a radius of 'radius'.
+
+			% Check if a number has been set
+			if nargin > 3
+				number = varargin{1};
+			else
+				number = 15;
+			end
 
 			% Increase radius (to be sure to be accessible)
 			radius = (5 / 4) * radius;
@@ -281,9 +288,16 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 		end
 
-		function closest = findClosestToTable(obj, from, center, radius, number)
+		function closest = findClosestToTable(obj, from, center, radius, varargin)
 			% Find the closest point in 'points' which are around
 			% a table centered at 'center' with a radius of 'radius'.
+
+			% Check if a number has been set
+			if nargin > 4
+				number = varargin{1};
+			else
+				number = 15;
+			end
 
 			% Generate points around the table
 			points = obj.aroundTable(center, radius, number);

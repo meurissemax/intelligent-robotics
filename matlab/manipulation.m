@@ -11,13 +11,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Display information
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
-	% Get the table difficulty
-	if strcmp(difficulty, 'hard')
-		tableDifficulty = 3;
-	else
-		tableDifficulty = 2;
-	end
-
 	% To initialize the map, either the information comes
 	% from the navigation phase (map and robot objects),
 	% either an additional argument (sceneName) can be passed
@@ -31,11 +24,26 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		robot.setInitPos([map.width, map.height]);
 	end
 
+	% Initialize the current difficulty for table
+	currentDifficulty = 'easy';
+
+	% Initialize maps the will contains information about tables
+	mapKey = {'empty', 'easy', 'hard'};
+
+	tablesCenter = containers.Map(mapKey, {[], [], []});
+	tablesRadius = containers.Map(mapKey, {[], [], []});
+	tablesObjects = containers.Map(mapKey, {[], [], []});
+
 	% Initialize elapsed time for data update
 	elapsed = timestep;
 
 	% Initialize total elapsed time counter
 	totalElapsed = timestep;
+
+
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%% Finite state machine setup %%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	% Initialize the state of the finite state machine
 	state = 'explore';
@@ -46,23 +54,18 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	hasAccCurrentObj = true;
 
 	% Initialize variables for 'explore' and 'analyze' states
-	currentTable = 1;
-
-	% Initialize variables for 'analyze' state
-	displayTypes = {'empty', 'easy', 'hard'};
+	tableIndex = 1;
 
 	% Initialize variable for 'grasp' state
-	currentGraspPoint = [];
-
-	% Initialize variables for 'analyze' and 'grasp' states
 	graspPoints = [];
+	currentGraspPoint = [];
 
 	% Initialize variables for 'drop' state
 	dropPoints = [];
 	currentDropPoint = [];
 
-	% Initialize variables for 'grasp' and 'drop' states
-	halfTable = false;
+	% Initialize variables for 'x-half' states
+	halfTurn = false;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%
@@ -155,20 +158,20 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		if strcmp(state, 'explore')
 
 			% Check if all tables have been explored
-			if currentTable > numel(map.tablesRadius)
+			if tableIndex > numel(map.tablesRadius)
 
 				% Update state
 				state = 'objects';
 			else
 
 				% Get the position of the current table
-				currentTablePos = map.findClosestToTable(robot.absPos, map.tablesCenterPos(currentTable, :), map.tablesRadius(currentTable), 10);
+				currentTablePos = map.findClosestToTable(robot.absPos, map.tablesCenter(tableIndex, :), map.tablesRadius(tableIndex));
 
 				% Check if the robot is already near the current table
 				if robot.checkObjective(currentTablePos)
 
 					% Update state
-					currentTableAngle = robot.getAngleTo(map.tablesCenterPos(currentTable, :));
+					currentTableAngle = robot.getAngleTo(map.tablesCenter(tableIndex, :));
 					state = 'analyze';
 				else
 
@@ -202,24 +205,22 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Determine table type and object positions
 				[tableType, objectPos] = robot.analyzeTable(pc);
-				map.tablesType(1, currentTable) = tableType;
 
 				% Update manipulation local variables
-				if tableType == 1
-					tableObjectivePos = map.tablesCenterPos(currentTable, :);
-					tableObjectiveRadius = map.tablesRadius(currentTable);
-				elseif tableType == tableDifficulty
-					tableObjectsPos = map.tablesCenterPos(currentTable, :);
-					tableObjectsRadius = map.tablesRadius(currentTable);
+				tablesCenter(tableType) = map.tablesCenter(tableIndex, :);
+				tablesRadius(tableType) = map.tablesRadius(tableIndex);
+				tablesObjects(tableType) = objectPos;
 
+				% Update initial grasp points
+				if strcmp(tableType, currentDifficulty)
 					graspPoints = objectPos;
 				end
 
 				% Display information
-				fprintf('Table detected as "%s".\n', displayTypes{tableType});
+				fprintf('Table detected as "%s".\n', tableType);
 
 				% Update the current table and state
-				currentTable = currentTable + 1;
+				tableIndex = tableIndex + 1;
 				state = 'explore';
 			else
 
@@ -236,14 +237,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'objects')
 
 			% If no table with objects has been found, stop the manipulation
-			if ~exist('tableObjectsPos', 'var')
+			if isempty(tablesCenter(currentDifficulty))
 				fprintf('No table with objects found, manipulation will stop here.\n');
 
 				return;
 			end
 
 			% Get closest point to the table
-			closestTableObjects = map.findClosestToTable(robot.absPos, tableObjectsPos, tableObjectsRadius, 10);
+			closestTableObjects = map.findClosestToTable(robot.absPos, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty));
 
 			% Check if robot is already near the objects table
 			if robot.checkObjective(closestTableObjects)
@@ -274,7 +275,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Get angle to be aligned with the table
-			tableObjectsAngle = robot.getAngleTo(tableObjectsPos);
+			tableObjectsAngle = robot.getAngleTo(tablesCenter(currentDifficulty));
 
 			% Check if robot is aligned with the table
 			if robot.checkObjective(tableObjectsAngle)
@@ -308,9 +309,18 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 					% Check if manipulation is done
 					if isempty(graspPoints)
-						fprintf('No (more) object available, manipulation is done !\n');
 
-						return;
+						% Check if robot has to do the 'hard' table
+						if strcmp(difficulty, 'hard') && ~strcmp(currentDifficulty, 'hard')
+							currentDifficulty = 'hard';
+							state = 'objects';
+
+							continue;
+						else
+							fprintf('No (more) object available, manipulation is done !\n');
+
+							return;
+						end
 					end
 				end
 
@@ -320,7 +330,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			end
 
 			% Get nearest point (around the table) to the grasp point
-			nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tableObjectsPos, tableObjectsRadius, 50);
+			nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 50);
 
 			% Check if robot is located at current grasp point
 			if robot.checkObjective(nearestGraspPoint)
@@ -371,16 +381,16 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Get angle for an half turn
-			if ~halfTable
+			if ~halfTurn
 				halfAngle = robot.orientation(3) - pi;
-				halfTable = true;
+				halfTurn = true;
 			end
 
 			% Check if robot has done the quarter turn
 			if robot.checkObjective(halfAngle)
 
 				% Reset flag
-				halfTable = false;
+				halfTurn = false;
 
 				% Update state
 				state = 'grasp-grasp';
@@ -413,14 +423,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'objective')
 
 			% If no empty table has been found, stop the manipulation
-			if ~exist('tableObjectivePos', 'var')
+			if isempty(tablesCenter('empty'))
 				fprintf('No empty table found, manipulation will stop here.\n');
 
 				return;
 			end
 
 			% Get closest point to the table
-			closestTableObjective = map.findClosestToTable(robot.absPos, tableObjectivePos, tableObjectiveRadius, 10);
+			closestTableObjective = map.findClosestToTable(robot.absPos, tablesCenter('empty'), tablesRadius('empty'));
 
 			% Check if robot is already near the objective table
 			if robot.checkObjective(closestTableObjective)
@@ -455,7 +465,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% If there is no more drop points, generate them
 				if isempty(dropPoints)
-					dropPoints = map.aroundTable(tableObjectivePos, tableObjectiveRadius, 10);
+					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'));
 				end
 
 				% Pop the drop point
@@ -482,7 +492,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Get angle to be aligned with the table
-			tableObjectiveAngle = robot.getAngleTo(tableObjectivePos);
+			tableObjectiveAngle = robot.getAngleTo(tablesCenter('empty'));
 
 			% Check if robot is aligned with the table
 			if robot.checkObjective(tableObjectiveAngle)
@@ -512,16 +522,16 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			robot.stop();
 
 			% Get angle for an half turn
-			if ~halfTable
+			if ~halfTurn
 				halfAngle = robot.orientation(3) - pi;
-				halfTable = true;
+				halfTurn = true;
 			end
 
 			% Check if robot has done the quarter turn
 			if robot.checkObjective(halfAngle)
 
 				% Reset flag
-				halfTable = false;
+				halfTurn = false;
 
 				% Update state
 				state = 'drop-drop';
