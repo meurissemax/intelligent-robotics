@@ -403,7 +403,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'grasp-adjust')
 
 			% Move forward the robot
-			if robot.forward('in', 0.6)
+			if robot.forward('in', 0.7)
 
 				% Stop the robot (if needed)
 				robot.stop();
