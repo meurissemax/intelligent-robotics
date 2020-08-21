@@ -673,45 +673,64 @@ classdef RobotController < handle
 			end
 		end
 
-		function [aligned, minDist] = adjustPosition(obj, data)
+		function [rotAlign, sensorDist, currentObj] = adjustPosition(obj, data, current)
 			% Analyze the data 'data' in order to determine if
 			% the robot is aligned with the nearest object
-			% visible in data.
+			% visible in data. Returns the rotation angle to do
+			% to be aligned, the distance between the sensor
+			% and the closest object to it and the relative position
+			% of the closest object to 'current' previous position.
 
 			% Get objects center positions
 			[~, objectPos] = obj.analyzeTable(data);
 
-			% Get the position of the nearest object
-			minDist = Inf;
-			minIndex = 1;
+			% Setup and calculte minimal distance.
+			% 'sensorDist' is for the forward-backward adjustment.
+			% 'objectDist' is for the alignement adjustment.
+
+			sensorDist = Inf;
+
+			objectDist = Inf;
+			objectIndex = 1;
 
 			for i = 1:size(objectPos, 1)
 				objectPos(i, :) = obj.absToSensor(objectPos(i, :));
-				objectDist = pdist2([0, 0], objectPos(i, :), 'euclidean');
 
-				if objectDist < minDist
-					minDist = objectDist;
-					minIndex = i;
+				sDist = pdist2([0, 0], objectPos(i, :), 'euclidean');
+				oDist = pdist2(current, objectPos(i, :), 'euclidean');
+
+				if sDist < sensorDist
+					sensorDist = sDist;
+				end
+
+				if oDist < objectDist
+					objectDist = oDist;
+					objectIndex = i;
 				end
 			end
 
-			% Check if object is aligned
-			xCoord = objectPos(minIndex, 1);
+			% Setup current object, i.e. nearest object to the previous
+			% detected closest object
+			currentObj = objectPos(objectIndex, :);
+
+			% Check if object is aligned and set the rotation
+			% to do to be aligned
+			xCoord = objectPos(objectIndex, 1);
 
 			if xCoord > 0.1
-				aligned = 5 * (pi / 180);
+				rotAlign = 5 * (pi / 180);
 			elseif xCoord > 0.02
-				aligned = 3 * (pi / 180);
+				rotAlign = 3 * (pi / 180);
 			elseif xCoord > 0.008
-				aligned = 1.5 * (pi / 180);
+				rotAlign = 1.5 * (pi / 180);
 			elseif xCoord < -0.1
-				aligned = -5 * (pi / 180);
+				rotAlign = -5 * (pi / 180);
 			elseif xCoord < -0.02
-				aligned = -3 * (pi / 180);
+				rotAlign = -3 * (pi / 180);
 			elseif xCoord < -0.008
-				aligned = -1.5 * (pi / 180);
+				rotAlign = -1.5 * (pi / 180);
 			else
-				aligned = 0;
+				rotAlign = 0;
 			end
 		end
 

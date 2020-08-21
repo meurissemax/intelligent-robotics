@@ -63,6 +63,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	graspPoints = [];
 	currentGraspPoint = [];
 	graspIncrement = false;
+	currentObj = [0, 0];
 
 	% Initialize variables for 'drop' state
 	dropPoints = [];
@@ -415,11 +416,14 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				end
 
 				% Analyze the point cloud
-				[aligned, objectDist] = robot.adjustPosition(pc);
+				[rotAlign, sensorDist, currentObj] = robot.adjustPosition(pc, currentObj);
 
 				% Check if object is too far for the robot (due
 				% to an error or something else before)
-				if objectDist > 0.6
+				if sensorDist > 0.6
+
+					% Reset the closest object relative position
+					currentObj = [0, 0];
 
 					% Update state
 					graspPoints = [];
@@ -428,11 +432,11 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 					state = 'grasp';
 				else
 
-					if aligned ~= 0
+					if rotAlign ~= 0
 
 						% Update state
 						previousState = state;
-						rotateObjective = robot.orientation(3) + aligned;
+						rotateObjective = robot.orientation(3) + rotAlign;
 						state = 'rotate';
 					else
 
@@ -440,9 +444,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 						graspIncrement = true;
 
 						% Calculate the displacement
-						displacement = objectDist - 0.35;
+						displacement = sensorDist - 0.35;
 
 						if abs(displacement) < 0.01
+
+							% Reset the closest object relative position
+							currentObj = [0, 0];
 
 							% Reset the flag
 							graspIncrement = false;
