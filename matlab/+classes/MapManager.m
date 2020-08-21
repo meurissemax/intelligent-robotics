@@ -37,6 +37,9 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 		% Connection distance between points for path algorithm
 		pathDist = 10;
+
+		% Number of tables located in the map (in theory)
+		numTables = 3;
 	end
 
 
@@ -209,49 +212,80 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			nextPath = obj.optimizePath(pathList);
 		end
 
-		function findTables(obj)
+		function findTables(obj, varargin)
 			% Find the center position and radius of each
 			% table of the map.
 
+			% Get the inflated factor, if any
+			if nargin > 1
+				inflFact = varargin{1};
+			else
+				inflFact = 0.15;
+			end
+
+			% Get sensitivity, if any
+			if nargin > 2
+				sensi = varargin{2};
+			else
+				sensi = 0.8;
+			end
+
 			% Initialize parameter
-			guessRadius = 3;
+			guessRadius = 2;
 			resizeFactor = 4;
 
 			% Inflate a copy of the map
 			mapInflated = copy(obj.map);
-			inflate(mapInflated, 0.1);
+			inflate(mapInflated, inflFact);
 
 			% Get corresponding occupancy matrix
 			occMatInf = occupancyMatrix(mapInflated);
+
+			% Fill empty values of the occupancy matrix
+			occMatInf(occMatInf < 0) = 1;
 
 			% Increase the resolution of the occupancy matrix
 			occMatInf = imresize(occMatInf, resizeFactor);
 
 			% Find the centers and radii of the tables
 			radiusRange = [guessRadius * resizeFactor, guessRadius * resizeFactor * 3];
-			[centers, radii] = imfindcircles(occMatInf, radiusRange);
+			[centers, radii] = imfindcircles(occMatInf, radiusRange, 'Method', 'TwoStage', 'Sensitivity', sensi);
 
 			% If tables have been found, save data
 			if numel(radii) > 0
 
-				% Update coordinate system of center points (to be the
-				% same as the project)
-				centers = [centers(:, 2), centers(:, 1)];
+				% If more than the maximum number of tables has been found
+				if numel(radii) > obj.numTables
 
-				% Set centers positions and radii
-				centers = round(centers ./ resizeFactor);
-				radii = round(radii ./ resizeFactor);
+					% Re try with less sensitivity
+					obj.findTables(inflFact, sensi - 0.05);
+				else
 
-				% Transform to map coordinates system
-				obj.tablesCenter = obj.matrixToMap(centers);
-				obj.tablesRadius = radii ./ obj.prec;
+					% Update coordinate system of center points (to be the
+					% same as the project)
+					centers = [centers(:, 2), centers(:, 1)];
+
+					% Set centers positions and radii
+					centers = round(centers ./ resizeFactor);
+					radii = round(radii ./ resizeFactor);
+
+					% Transform to map coordinates system
+					obj.tablesCenter = obj.matrixToMap(centers);
+					obj.tablesRadius = radii ./ obj.prec;
+				end
 
 			% If no table has been found
 			else
 
-				% Set empty arrays
-				obj.tablesCenter = [];
-				obj.tablesRadius = [];
+				% Re try with less inflate
+				if inflFact - 0.05 > 0
+					obj.findTables(inflFact - 0.05);
+				else
+
+					% Set empty arrays
+					obj.tablesCenter = [];
+					obj.tablesRadius = [];
+				end
 			end
 		end
 
