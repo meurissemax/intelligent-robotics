@@ -263,6 +263,10 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% Check if a number has been set
 			if nargin > 3
 				number = varargin{1};
+
+				if number < 1
+					number = 1;
+				end
 			else
 				number = 15;
 			end
@@ -323,6 +327,25 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% Set the closest
 			closest = points(index, :);
+
+			% Check if point is reachable
+			if getOccupancy(obj.map, closest) < 0.9
+
+				% If point is not reachable, return the first
+				% reachable point
+				for i = 1:size(points, 1)
+
+					% Check if point is reachable
+					if getOccupancy(obj.map, points(i, :))
+						closest = points(i, :);
+
+						return;
+					end
+				end
+
+				% If no reachable point has been found, return NaN
+				closest = NaN;
+			end
 		end
 
 		function show(obj, varargin)

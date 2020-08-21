@@ -40,6 +40,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Initialize total elapsed time counter
 	totalElapsed = timestep;
 
+	% Initialize total number of object
+	totalNumberObjects = 0;
+
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%% Finite state machine setup %%
@@ -168,6 +171,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				% Get the position of the current table
 				currentTablePos = map.findClosestToTable(robot.absPos, map.tablesCenter(tableIndex, :), map.tablesRadius(tableIndex));
 
+				if isnan(currentTablePos)
+					fprintf('Unable to find a reachable point close to the table.\n');
+
+					return;
+				end
+
 				% Check if the robot is already near the current table
 				if robot.checkObjective(currentTablePos)
 
@@ -212,6 +221,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 				tablesRadius(tableType) = map.tablesRadius(tableIndex);
 				tablesObjects(tableType) = objectPos;
 
+				% Update the total number of objects
+				totalNumberObjects = totalNumberObjects + size(objectPos, 1);
+
 				% Update initial grasp points
 				if strcmp(tableType, currentDifficulty)
 					graspPoints = objectPos;
@@ -246,6 +258,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 			% Get closest point to the table
 			closestTableObjects = map.findClosestToTable(robot.absPos, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty));
+
+			if isnan(closestTableObjects)
+				fprintf('Unable to find a reachable point close to the table.\n');
+
+				return;
+			end
 
 			% Check if robot is already near the objects table
 			if robot.checkObjective(closestTableObjects)
@@ -293,6 +311,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% Get nearest point (around the table) to the grasp point
 				nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 40);
+
+				if isnan(nearestGraspPoint)
+					fprintf('Unable to find a reachable point close to the table.\n');
+
+					return;
+				end
 
 				% Check if robot is located at current grasp point
 				if robot.checkObjective(nearestGraspPoint)
@@ -491,6 +515,12 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 			% Get closest point to the table
 			closestTableObjective = map.findClosestToTable(robot.absPos, tablesCenter('empty'), tablesRadius('empty'));
 
+			if isnan(closestTableObjective)
+				fprintf('Unable to find a reachable point close to the table.\n');
+
+				return;
+			end
+
 			% Check if robot is already near the objective table
 			if robot.checkObjective(closestTableObjective)
 
@@ -524,7 +554,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 
 				% If there is no more drop points, generate them
 				if isempty(dropPoints)
-					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'), 8);
+					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'), totalNumberObjects);
 				end
 
 				% Pop the drop point
