@@ -608,7 +608,7 @@ classdef RobotController < handle
 			% table and the position of the objects (if any).
 
 			% Filter points
-			f = data(4, :) < 2 & data(2, :) > -0.04;
+			f = data(4, :) < 1.5 & data(2, :) > -0.04;
 			data = data(:, f);
 
 			% Remove center point (robot itself)
@@ -629,7 +629,7 @@ classdef RobotController < handle
 			else
 				tableType = 'hard';
 
-				[labels, numClusters] = pcsegdist(pc, 0.005);
+				[labels, numClusters] = pcsegdist(pc, 0.05);
 			end
 
 			% Initialize object positions
@@ -648,14 +648,32 @@ classdef RobotController < handle
 
 					midPoint = sum(cyl.Location) / size(cyl.Location, 1);
 
-					if numel(midPoint) > 1
-						midPoint = midPoint(1:2);
-
-						midPoint(2) = -midPoint(2);
-
-						objectPos(objectIndex, :) = obj.absPos + midPoint;
-						objectIndex = objectIndex + 1;
+					% Check if middle point has two coordinates
+					if numel(midPoint) < 2
+						continue;
 					end
+
+					% Check if middle point is not [0, 0]
+					if sum(midPoint == 0) == numel(midPoint)
+						continue;
+					end
+
+					midPoint = midPoint(1:2);
+					midPoint(2) = -midPoint(2);
+
+					% Transform middle point to absolute position
+					sensorToRef = [-0.0003 -0.25];
+
+					rotMat = [ ...
+						cos(obj.orientation(3)), -sin(obj.orientation(3)); ...
+						sin(obj.orientation(3)) cos(obj.orientation(3)) ...
+					];
+
+					midPointAbs = rotMat * (midPoint + sensorToRef)' + obj.absPos';
+					objectPos(objectIndex, :) = midPointAbs';
+
+					% Increment the index
+					objectIndex = objectIndex + 1;
 				end
 			end
 		end
@@ -712,10 +730,10 @@ classdef RobotController < handle
 			if strcmp(action, 'grasp')
 				gripperAction = 0;
 
-				armAngles = [
-					[0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0]; ...
-					[0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0]; ...
-					[0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0]; ...
+				armAngles = [ ...
+					0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0; ...
+					0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0; ...
+					0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0 ...
 				];
 			else
 				gripperAction = 1;
