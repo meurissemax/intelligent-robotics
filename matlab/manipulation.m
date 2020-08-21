@@ -440,9 +440,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 						graspIncrement = true;
 
 						% Calculate the displacement
-						displacement = objectDist - 0.32;
+						displacement = objectDist - 0.35;
 
-						if abs(displacement) < 0.02
+						if abs(displacement) < 0.01
 
 							% Reset the flag
 							graspIncrement = false;

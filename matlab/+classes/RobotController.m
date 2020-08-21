@@ -59,6 +59,9 @@ classdef RobotController < handle
 		% Navigation difficulty
 		navDifficulty
 
+		% Distance between center of the robot and sensor
+		sensorToRef = [-0.0003, -0.25];
+
 		%%%%%%%%%%%%
 		% Odometry %
 		%%%%%%%%%%%%
@@ -662,15 +665,7 @@ classdef RobotController < handle
 					midPoint(2) = -midPoint(2);
 
 					% Transform middle point to absolute position
-					sensorToRef = [-0.0003 -0.25];
-
-					rotMat = [ ...
-						cos(obj.orientation(3)), -sin(obj.orientation(3)); ...
-						sin(obj.orientation(3)) cos(obj.orientation(3)) ...
-					];
-
-					midPointAbs = rotMat * (midPoint + sensorToRef)' + obj.absPos';
-					objectPos(objectIndex, :) = midPointAbs';
+					objectPos(objectIndex, :) = obj.sensorToAbs(midPoint);
 
 					% Increment the index
 					objectIndex = objectIndex + 1;
@@ -686,14 +681,12 @@ classdef RobotController < handle
 			% Get objects center positions
 			[~, objectPos] = obj.analyzeTable(data);
 
-			% Get relative position
-			objectPos = objectPos - obj.absPos;
-
 			% Get the position of the nearest object
 			minDist = Inf;
 			minIndex = 1;
 
 			for i = 1:size(objectPos, 1)
+				objectPos(i, :) = obj.absToSensor(objectPos(i, :));
 				objectDist = pdist2([0, 0], objectPos(i, :), 'euclidean');
 
 				if objectDist < minDist
@@ -887,6 +880,36 @@ classdef RobotController < handle
 
 			% Update the true position
 			obj.absPos = obj.estimatedPos;
+		end
+
+		function absPos = sensorToAbs(obj, relPos)
+			% Convert a relative (to the sensor) position to
+			% an absolute position.
+
+			% Define rotation matrix
+			rotMat = [ ...
+				cos(obj.orientation(3)), -sin(obj.orientation(3)); ...
+				sin(obj.orientation(3)) cos(obj.orientation(3)) ...
+			];
+
+			% Convert relative to absolute
+			absPos = rotMat * (relPos + obj.sensorToRef)' + obj.absPos';
+			absPos = absPos';
+		end
+
+		function relPos = absToSensor(obj, absPos)
+			% Convert an absolute position to a relative (to
+			% the sensor) position.
+
+			% Define rotation matrix
+			rotMat = [ ...
+				cos(obj.orientation(3)), -sin(obj.orientation(3)); ...
+				sin(obj.orientation(3)) cos(obj.orientation(3)) ...
+			];
+
+			% Convert absolute to relative
+			relPos = (rotMat \ (absPos' - obj.absPos')) - obj.sensorToRef';
+			relPos = relPos';
 		end
 	end
 end
