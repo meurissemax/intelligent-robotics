@@ -569,7 +569,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 		elseif strcmp(state, 'drop-forward')
 
 			% Move the robot forward until it is near the table
-			if robot.forward('in', 0.6)
+			if robot.forward('in', 0.55)
 
 				% Update state
 				state = 'drop-half';

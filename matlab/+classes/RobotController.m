@@ -708,56 +708,36 @@ classdef RobotController < handle
 			% Use the arm of the robot. The robot will grasp or drop an element
 			% depending on the value of 'action'.
 
-			% Set the action for the gripper
+			% Set the action and angles for the gripper
 			if strcmp(action, 'grasp')
 				gripperAction = 0;
+
+				armAngles = [
+					[0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0]; ...
+					[0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0]; ...
+					[0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0]; ...
+				];
 			else
 				gripperAction = 1;
+
+				armAngles = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
 			end
 
 			% Remove inverse kinematic mode (to be sure)
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res, true);
 
-			% Intermediate position 1
-			chooseAngle = [0, pi / 4, -pi / 2, 0, 0];
+			% Set the arm angles
+			for i = 1:size(armAngles, 1)
+				currentAngles = armAngles(i, :);
 
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
+				for j = 1:numel(currentAngles)
+					res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(j), currentAngles(j), obj.vrep.simx_opmode_oneshot);
+					vrchk(obj.vrep, res, true);
+				end
+
+				pause(3);
 			end
-
-			pause(3);
-
-			% Intermediate position 2
-			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-				vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
-			% Intermediate position 3
-			chooseAngle = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
-
-			% Intermediate position 4
-			chooseAngle = [0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0];
-
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
-                vrchk(obj.vrep, res, true);
-			end
-
-			pause(3);
 
 			% Use the gripper
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', gripperAction, obj.vrep.simx_opmode_oneshot_wait);
@@ -766,10 +746,10 @@ classdef RobotController < handle
 			pause(3);
 
 			% Reset the arm position
-			chooseAngle = [0, 0.74, pi / 4, pi / 2, 0];
+			resetAngles = [0, 0.74, pi / 4, pi / 2, 0];
 
-			for i = 1:numel(chooseAngle)
-				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), chooseAngle(i), obj.vrep.simx_opmode_oneshot);
+			for i = 1:numel(resetAngles)
+				res = obj.vrep.simxSetJointTargetPosition(obj.id, obj.h.armJoints(i), resetAngles(i), obj.vrep.simx_opmode_oneshot);
 				vrchk(obj.vrep, res, true);
 			end
 
