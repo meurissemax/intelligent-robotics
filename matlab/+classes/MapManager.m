@@ -329,7 +329,11 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			closest = points(index, :);
 
 			% Check if point is reachable
-			if getOccupancy(obj.map, closest) < 0.9
+			occMat = obj.getOccupancyMatrix();
+			toMat = obj.toMatrix(round(closest .* obj.prec));
+			ptsMat = occMat(toMat(1), toMat(2));
+
+			if ptsMat < 0 || ptsMat > 0.5
 
 				% If point is not reachable, return the first
 				% reachable point
