@@ -629,7 +629,7 @@ classdef RobotController < handle
 			else
 				tableType = 'hard';
 
-				[labels, numClusters] = pcsegdist(pc, 0.05);
+				[labels, numClusters] = pcsegdist(pc, 0.02);
 			end
 
 			% Initialize object positions
