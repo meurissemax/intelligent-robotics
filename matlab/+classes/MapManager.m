@@ -39,7 +39,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 		pathDist = 10;
 
 		% Number of tables located in the map (in theory)
-		numTables = 3;
+		numTables;
 	end
 
 
@@ -48,7 +48,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = MapManager(mapWidth, mapHeight, mapPrec, navDifficulty)
+		function obj = MapManager(mapWidth, mapHeight, mapPrec, numTables, navDifficulty)
 			% Constructor of the class.
 
 			% Set dimensions and precision
@@ -63,6 +63,9 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% Instantiate the occupancy map (with dimensions x2 because
 			% we do not know where the robot starts in the map)
 			obj.map = occupancyMap(mapWidth * 2, mapHeight * 2, mapPrec);
+
+			% Set the number of tables in the map
+			obj.numTables = numTables;
 
 			% Save the navigation difficulty
 			obj.navDifficulty = navDifficulty;

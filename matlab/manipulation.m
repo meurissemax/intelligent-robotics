@@ -2,7 +2,7 @@
 % University of Liege - Academic year 2019-2020
 % Authors : Maxime Meurisse & Valentin Vermeylen
 
-function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
+function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, varargin)
 
 	%%%%%%%%%%%%%%%%%%%%
 	%% Initialization %%
@@ -11,17 +11,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, varargin)
 	% Display information
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
-	% To initialize the map, either the information comes
-	% from the navigation phase (map and robot objects),
-	% either an additional argument (sceneName) can be passed
-	% to the function. In this latter case, the map is loaded
-	% from a .mat file and the position of the robot is
-	% initialized.
-
 	% Load the map and set initial position of the robot, if needed
-	if nargin > 6
-		map.load(varargin{1});
-		robot.setInitPos([map.width, map.height]);
+	map.load(sceneName);
+
+	if nargin > 7
+		if varargin{1}
+			robot.setInitPos([map.width, map.height]);
+		end
 	end
 
 	% Initialize the current difficulty for table

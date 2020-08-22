@@ -22,6 +22,9 @@ function main()
 	% Manipulation difficulty ('easy' or 'hard')
 	manDifficulty = 'easy';
 
+	% Number of tables to detect
+	numTables = 3;
+
 	% Timestep of the simulator
 	timestep = 0.05;
 
@@ -74,7 +77,7 @@ function main()
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 	% Map and robot instance
-	map = classes.MapManager(mapWidth, mapHeight, mapPrec, navDifficulty);
+	map = classes.MapManager(mapWidth, mapHeight, mapPrec, numTables, navDifficulty);
 	robot = classes.RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navDifficulty);
 
 	% Initialize the mesh grid (for the data retrieving
@@ -87,7 +90,7 @@ function main()
 	%%%%%%%%%%%%%%%%
 
 	navigation(vrep, id, timestep, map, robot, sceneName);
-	manipulation(vrep, id, timestep, map, robot, manDifficulty);
+	manipulation(vrep, id, timestep, map, robot, manDifficulty, sceneName);
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%
