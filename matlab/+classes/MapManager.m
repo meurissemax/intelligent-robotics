@@ -234,7 +234,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Initialize parameter
-			guessRadius = 2;
+			guessRadius = 3;
 			resizeFactor = 4;
 
 			% Inflate a copy of the map
@@ -268,9 +268,11 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					% same as the project)
 					centers = [centers(:, 2), centers(:, 1)];
 
-					% Set centers positions and radii
+					% Set centers positions
 					centers = round(centers ./ resizeFactor);
-					radii = round(radii ./ resizeFactor);
+
+					% Adjust radii
+					radii(:) = guessRadius * 1.1;
 
 					% Transform to map coordinates system
 					centers = obj.matrixToMap(centers);
