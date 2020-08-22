@@ -229,6 +229,10 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				% Display information
 				fprintf('Table detected as "%s".\n', tableType);
 
+				if ~strcmp(tableType, 'empty')
+					fprintf('%d object(s) detected on the table.\n', size(objectPos, 1));
+				end
+
 				% Update the current table and state
 				tableIndex = tableIndex + 1;
 				state = 'explore';
@@ -267,9 +271,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Update state
 				state = 'grasp';
-
-				% Display information
-				fprintf('Try to grasp an object...\n');
 			else
 
 				% Bring the robot to the object table
@@ -298,6 +299,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 					% Update state
 					state = 'grasp-analyze';
+
+					% Display information
+					fprintf('Analyzing the table...\n');
 				else
 
 					% Pop a grasp position
@@ -388,6 +392,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Update state
 				state = 'grasp-adjust';
+
+				% Display information
+				fprintf('Adjusting to catch the object...\n');
 			else
 
 				% Update state
@@ -426,6 +433,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 					currentGraspPoint = [];
 
 					state = 'grasp';
+
+					% Display information
+					fprintf('Object is too far, try a new position.\n');
 				else
 
 					if rotAlign ~= 0
@@ -452,6 +462,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 							% Update state
 							state = 'grasp-half';
+
+							% Display information
+							fprintf('Trying to grasp the object...\n');
 						else
 
 							% Move the robot a little bit
@@ -502,15 +515,21 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			% Check the grasping
 			if robot.checkGrasp(img)
 
+				% Reset the current point
+				currentGraspPoint = [];
+
 				% Update the state
 				state = 'objective';
 
-				% Reset the current point
-				currentGraspPoint = [];
+				% Display information
+				fprintf('Object has been grasped !\n');
 			else
 
 				% Update the state
 				state = 'grasp-align';
+
+				% Display information
+				fprintf('Grasp failed. Robot will try again.\n');
 			end
 
 		%%%%%%%%%%%%%%%%%%%%%
