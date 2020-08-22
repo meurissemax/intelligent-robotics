@@ -406,7 +406,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Take a 3D point cloud
 				if graspIncrement
-					pc = robot.take3DPointCloud((-pi / 8):(pi / 16):(pi / 8));
+					pc = robot.take3DPointCloud((-pi / 16):(pi / 16):(pi / 16));
 				else
 					pc = robot.take3DPointCloud((-pi / 7):(pi / 32):(pi / 7));
 				end

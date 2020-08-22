@@ -272,7 +272,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					centers = round(centers ./ resizeFactor);
 
 					% Adjust radii
-					radii(:) = guessRadius * 1.1;
+					radii(:) = guessRadius * 1.2;
 
 					% Transform to map coordinates system
 					centers = obj.matrixToMap(centers);
