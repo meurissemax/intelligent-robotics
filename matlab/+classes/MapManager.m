@@ -38,8 +38,9 @@ classdef MapManager < handle & matlab.mixin.Copyable
 		% Connection distance between points for path algorithm
 		pathDist = 10;
 
-		% Number of tables located in the map (in theory)
-		numTables;
+		% Information about tables located in the map (in theory)
+		numTables
+		radiusTables
 	end
 
 
@@ -48,7 +49,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 	%%%%%%%%%%%%%
 
 	methods (Access = public)
-		function obj = MapManager(mapWidth, mapHeight, mapPrec, numTables, navDifficulty)
+		function obj = MapManager(mapWidth, mapHeight, mapPrec, numTables, radiusTables, navDifficulty)
 			% Constructor of the class.
 
 			% Set dimensions and precision
@@ -64,14 +65,15 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% we do not know where the robot starts in the map)
 			obj.map = occupancyMap(mapWidth * 2, mapHeight * 2, mapPrec);
 
-			% Set the number of tables in the map
+			% Set the information about tables
 			obj.numTables = numTables;
+			obj.radiusTables = radiusTables;
 
 			% Save the navigation difficulty
 			obj.navDifficulty = navDifficulty;
 		end
 
-		function setPoints(obj, points, value)
+		function setPoints(obj, points, value, varargin)
 			% Assign a value 'value' to some points 'points' of the
 			% occupancy map ('points' is an array [x y] where x and y
 			% are column of values, e.g points = [1 2; 3 4; 5 6].
@@ -81,7 +83,16 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% is useful because the Hokuyo is not always reliable for
 			% the point detection.
 
-			if value == 0
+			% Check the flag
+			if nargin > 3
+				replace = varargin{1};
+			else
+				replace = false;
+			end
+
+			% Filter points to replace, depending on the value and
+			% the flag
+			if value == 0 && ~replace
 				if strcmp(obj.navDifficulty, 'easy')
 					occVal = getOccupancy(obj.map, points);
 					points = points(occVal < 0.9, :);
@@ -97,13 +108,20 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			setOccupancy(obj.map, points, value);
 		end
 
-		function setNeighborhood(obj, point, radius, value)
+		function setNeighborhood(obj, point, radius, value, varargin)
 			% Assign a value 'value' to a point 'point' and his
 			% neighborhood (of radius 'radius' in the occupancy map) in
 			% the occupancy map.
 
+			% Check the flag for the points replacement policy
+			if nargin > 4
+				replace = varargin{1};
+			else
+				replace = false;
+			end
+
 			% Set the point itself
-			obj.setPoints(point, value);
+			obj.setPoints(point, value, replace);
 
 			% Get the limits of the map (to be sure to not exceed it)
 			xLimits = obj.map.XWorldLimits;
@@ -115,7 +133,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			for x = (point(1) - radius * dx):dx:(point(1) + radius * dx)
 				for y = (point(2) - radius * dx):dx:(point(2) + radius * dx)
 					if x >= xLimits(1) && y >= yLimits(1) && x <= xLimits(2) && y <= yLimits(2) && (x ~= point(1) || y ~= point(2))
-						obj.setPoints([x, y], value);
+						obj.setPoints([x, y], value, replace);
 					end
 				end
 			end
@@ -234,7 +252,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Initialize parameter
-			guessRadius = 3;
+			guessRadius = obj.radiusTables * obj.prec;
 			resizeFactor = 4;
 
 			% Inflate a copy of the map
@@ -291,6 +309,12 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					centers = centers(distOrder, :);
 					radii = radii(distOrder);
 
+					% Adjust poins representing the tables in the map
+					for i = 1:size(centers, 1)
+						obj.setNeighborhood(centers(i, :), 5, 0, true);
+						obj.setNeighborhood(centers(i, :), 1, 1, true);
+					end
+
 					% Save information
 					obj.tablesCenter = centers;
 					obj.tablesRadius = radii;
@@ -328,7 +352,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Increase radius (to be sure to be accessible)
-			radius = (5 / 4) * radius;
+			radius = 2.2 * radius;
 
 			% Initialize array of points
 			rawPoints = zeros(number, 2);

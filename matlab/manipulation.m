@@ -137,15 +137,16 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		%
 		% Tables analysis
 		% ---------------
-		%	1. 'explore' : go to each table detected and 'analyze' and then 'objects'
-		%	2. 'analyze' : infer the type of the table based on sensor data and then 'explore'
+		%	1. 'explore' : go to each table detected and 'adjust' and then 'objects'
+		%	2. 'adjust' : adjust the position of the table with a point cloud and then 'analyze'
+		%	3. 'analyze' : infer the type of the table based on sensor data and then 'explore'
 		%
 		% Grasping of objects
 		% -------------------
-		%	3. 'objects' : go to the objects table and 'grasp'
-		%	4. 'grasp' : grasp an object (if any, else terminate) and then 'objective'
-		%	5. 'objective' : go to the objective table and 'drop'
-		%	6. 'drop' : drop the grasped object and then 'objects'
+		%	4. 'objects' : go to the objects table and 'grasp'
+		%	5. 'grasp' : grasp an object (if any, else terminate) and then 'objective'
+		%	6. 'objective' : go to the objective table and 'drop'
+		%	7. 'drop' : drop the grasped object and then 'objects'
 		%
 		% Other states
 		% ------------
@@ -178,8 +179,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				if robot.checkObjective(currentTablePos)
 
 					% Update state
-					currentTableAngle = robot.getAngleTo(map.tablesCenter(tableIndex, :));
-					state = 'analyze';
+					state = 'explore-align';
 				else
 
 					% Bring the robot to the current table
@@ -192,6 +192,61 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				end
 			end
 
+		elseif strcmp(state, 'explore-align')
+
+			% Stop the robot
+			robot.stop();
+
+			% Get angle to be aligned
+			currentTableAngle = robot.getAngleTo(map.tablesCenter(tableIndex, :));
+
+			% Check if robot is aligned
+			if robot.checkObjective(currentTableAngle)
+
+				% Update state
+				state = 'adjust';
+
+				% Display information
+				fprintf('Adjusting the table position...\n');
+			else
+
+				% Update state
+				previousState = state;
+				rotateObjective = currentTableAngle;
+				state = 'rotate';
+			end
+
+		%%%%%%%%%%%%%%%%%%
+		% 'adjust' state %
+		%%%%%%%%%%%%%%%%%%
+
+		elseif strcmp(state, 'adjust')
+
+			% We stop the robot
+			robot.stop();
+
+			% Take a (large) 3D point cloud of the table
+			pc = robot.take3DPointCloud((-pi / 3):(pi / 6):(pi / 3), pi / 6);
+
+			% Determine nearest point of the table
+			nCenter = robot.adjustTable(pc, map.tablesRadius(tableIndex));
+
+			% Update the center position of the table
+			map.setNeighborhood(map.tablesCenter(tableIndex, :), 5, 0, true);
+			map.tablesCenter(tableIndex, :) = nCenter;
+			map.setNeighborhood(map.tablesCenter(tableIndex, :), 1, 1, true);
+
+			% Refresh the map
+			map.show();
+
+			% Update state
+			currentTableAngle = robot.getAngleTo(map.tablesCenter(tableIndex, :));
+			state = 'analyze';
+
+			% Display information
+			fprintf('Table center position adjusted !\n');
+
+
 		%%%%%%%%%%%%%%%%%%%
 		% 'analyze' state %
 		%%%%%%%%%%%%%%%%%%%
@@ -201,7 +256,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			% We stop the robot
 			robot.stop();
 
-			% Check if robot is already aligned with the table
+			% Check if robot is aligned with the table
 			if robot.checkObjective(currentTableAngle)
 
 				% Display information

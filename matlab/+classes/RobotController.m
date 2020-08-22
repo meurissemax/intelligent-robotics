@@ -643,6 +643,41 @@ classdef RobotController < handle
 			end
 		end
 
+		function nCenter = adjustTable(obj, data, radius)
+			% Analyze the data (point cloud of a table) to determine
+			% the nearest point to the robot center ('nCoord') and
+			% infer the center of the table coordinates ('nCenter').
+
+			% Filter points
+			f = data(4, :) < 1.5 & data(2, :) < -0.05 & data(2, :) > -0.2;
+			data = data(:, f);
+
+			% Remove center point (robot itself)
+			f = data(4, :) ~= 0;
+			data = data(:, f);
+
+			% Get nearest point
+			minDist = Inf;
+			minIndex = -1;
+
+			for i = 1:size(data, 2)
+				d = pdist2(obj.sensorToRef, [data(1, i), data(3, i)], 'euclidean');
+
+				if d < minDist
+					minDist = d;
+					minIndex = i;
+				end
+			end
+
+			% Get absolute coordinates of nearest point
+			nCoord = [data(1, minIndex), data(3, minIndex)];
+			nCoord(2) = -nCoord(2);
+			nCoord = obj.sensorToAbs(nCoord);
+
+			% Get absolute coordinates of the center
+			nCenter = nCoord - ((obj.absPos - nCoord) ./ minDist) .* radius;
+		end
+
 		function [tableType, objectPos] = analyzeTable(obj, data)
 			% Analyze the input data to determine the type of the
 			% table and the position of the objects (if any).
