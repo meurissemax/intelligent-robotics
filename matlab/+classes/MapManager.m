@@ -142,8 +142,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			% Get next point to explore
 			if nargin > 3
 				nextPoint = varargin{1};
-				nextPoint = round(nextPoint .* obj.prec);
-				nextPoint = obj.toMatrix(nextPoint);
+				nextPoint = obj.mapToMatrix(nextPoint);
 			else
 				nextPoint = obj.getNextPointToExplore(obj.toMatrix(from), occMatInf);
 
@@ -292,7 +291,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 		end
 
-		function points = aroundTable(~, center, radius, varargin)
+		function points = aroundTable(obj, center, radius, varargin)
 			% Generate 'number' (varargin 1) points equally spaced
 			% around a table centered at 'center' position and with
 			% a radius of 'radius'.
@@ -312,7 +311,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			radius = (5 / 4) * radius;
 
 			% Initialize array of points
-			points = zeros(number, 2);
+			rawPoints = zeros(number, 2);
 
 			% Calculte the angle increment
 			dx = (2 * pi) / number;
@@ -322,10 +321,32 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% Generate each point
 			for i = 1:number
-				points(i, 1) = center(1) + radius * cos(ang);
-				points(i, 2) = center(2) + radius * sin(ang);
+				rawPoints(i, 1) = center(1) + radius * cos(ang);
+				rawPoints(i, 2) = center(2) + radius * sin(ang);
 
 				ang = ang + dx;
+			end
+
+			% Mark unreachable points
+			occMat = obj.getOccupancyMatrix();
+
+			for i = 1:size(rawPoints, 1)
+				ptsMat = obj.mapToMatrix(rawPoints(i, :));
+
+				if occMat(ptsMat(1), ptsMat(2)) < 0 || occMat(ptsMat(1), ptsMat(2)) > 0.5
+					rawPoints(i, :) = [NaN, NaN];
+				end
+			end
+
+			% Remove all unreachable points
+			points = zeros(size(rawPoints, 1) - sum(isnan(rawPoints(:, 1))), 2);
+			index = 1;
+
+			for i = 1:size(rawPoints, 1)
+				if ~isnan(rawPoints(i, 1))
+					points(index, :) = rawPoints(i, :);
+					index = index + 1;
+				end
 			end
 		end
 
@@ -342,6 +363,13 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% Generate points around the table
 			points = obj.aroundTable(center, radius, number);
+
+			% Check if there is at least one reachable point
+			if isempty(points)
+				closest = NaN;
+
+				return;
+			end
 
 			% Initialize the distance
 			minDist = Inf;
@@ -362,31 +390,8 @@ classdef MapManager < handle & matlab.mixin.Copyable
 				end
 			end
 
-			% Set the closest
+			% Get the closest point
 			closest = points(index, :);
-
-			% Check if point is reachable
-			occMat = obj.getOccupancyMatrix();
-			toMat = obj.toMatrix(round(closest .* obj.prec));
-			ptsMat = occMat(toMat(1), toMat(2));
-
-			if ptsMat < 0 || ptsMat > 0.5
-
-				% If point is not reachable, return the first
-				% reachable point
-				for i = 1:size(points, 1)
-
-					% Check if point is reachable
-					if getOccupancy(obj.map, points(i, :))
-						closest = points(i, :);
-
-						return;
-					end
-				end
-
-				% If no reachable point has been found, return NaN
-				closest = NaN;
-			end
 		end
 
 		function show(obj, varargin)
@@ -520,6 +525,18 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% To occupancy map coordinates
 			mapPoint = round(mapPoint ./ obj.prec, 1);
+		end
+
+		function matrixPoint = mapToMatrix(obj, mapPoint)
+			% Convert a point with coordinates of a map (in
+			% map convention) to a point with occupancy matrix
+			% coordinates (matrix convention).
+
+			% To occupancy matrix coordinates
+			matrixPoint = round(mapPoint .* obj.prec);
+
+			% To matrix
+			matrixPoint = obj.toMatrix(matrixPoint);
 		end
 	end
 

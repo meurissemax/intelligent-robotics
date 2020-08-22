@@ -560,6 +560,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'), totalNumberObjects);
 				end
 
+				% Check if there is at least a reachable point
+				if isempty(dropPoints)
+					fprintf('No point reachable around the table.\n');
+
+					return;
+				end
+
 				% Pop the drop point
 				currentDropPoint = dropPoints(end, :);
 				dropPoints(end, :) = [];
