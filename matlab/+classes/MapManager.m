@@ -214,19 +214,20 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			nextPath = obj.optimizePath(pathList);
 		end
 
-		function findTables(obj, varargin)
+		function findTables(obj, robotPos, varargin)
 			% Find the center position and radius of each
-			% table of the map.
+			% table of the map. Tables are ordered according
+			% to their distance to 'robotPos' (nearest first).
 
 			% Get the inflated factor, if any
-			if nargin > 1
+			if nargin > 2
 				inflFact = varargin{1};
 			else
 				inflFact = 0.15;
 			end
 
 			% Get sensitivity, if any
-			if nargin > 2
+			if nargin > 3
 				sensi = varargin{2};
 			else
 				sensi = 0.8;
@@ -260,7 +261,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 				if numel(radii) > obj.numTables
 
 					% Re try with less sensitivity
-					obj.findTables(inflFact, sensi - 0.05);
+					obj.findTables(robotPos, inflFact, sensi - 0.05);
 				else
 
 					% Update coordinate system of center points (to be the
@@ -272,8 +273,25 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					radii = round(radii ./ resizeFactor);
 
 					% Transform to map coordinates system
-					obj.tablesCenter = obj.matrixToMap(centers);
-					obj.tablesRadius = radii ./ obj.prec;
+					centers = obj.matrixToMap(centers);
+					radii = radii ./ obj.prec;
+
+					% Calculate distance to robot for each point
+					distCenters = zeros(size(centers, 1), 1);
+
+					for i = 1:size(centers, 1)
+						distCenters(i) = pdist2(robotPos, centers(i, :), 'euclidean');
+					end
+
+					% Sort the distance and re order information
+					[~, distOrder] = sort(distCenters);
+
+					centers = centers(distOrder, :);
+					radii = radii(distOrder);
+
+					% Save information
+					obj.tablesCenter = centers;
+					obj.tablesRadius = radii;
 				end
 
 			% If no table has been found
@@ -281,7 +299,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 				% Re try with less inflate
 				if inflFact - 0.05 > 0
-					obj.findTables(inflFact - 0.05);
+					obj.findTables(robotPos, inflFact - 0.05);
 				else
 
 					% Set empty arrays
@@ -291,13 +309,13 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 		end
 
-		function points = aroundTable(obj, center, radius, varargin)
+		function points = aroundTable(obj, robotPos, center, radius, varargin)
 			% Generate 'number' (varargin 1) points equally spaced
 			% around a table centered at 'center' position and with
 			% a radius of 'radius'.
 
 			% Check if a number has been set
-			if nargin > 3
+			if nargin > 4
 				number = varargin{1};
 
 				if number < 1
@@ -348,6 +366,22 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					index = index + 1;
 				end
 			end
+
+			if ~isempty(points)
+
+				% Order the point by distance to robot
+				distPts = zeros(size(points, 1), 1);
+
+				for i = 1:size(points, 1)
+					distPts(i) = pdist2(robotPos, points(i, :), 'euclidean');
+				end
+
+				% Sort the distance and re order information
+				[~, distOrder] = sort(distPts, 'descend');
+
+				% Re order the array
+				points = points(distOrder, :);
+			end
 		end
 
 		function closest = findClosestToTable(obj, from, center, radius, varargin)
@@ -362,7 +396,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Generate points around the table
-			points = obj.aroundTable(center, radius, number);
+			points = obj.aroundTable(from, center, radius, number);
 
 			% Check if there is at least one reachable point
 			if isempty(points)
@@ -371,27 +405,8 @@ classdef MapManager < handle & matlab.mixin.Copyable
 				return;
 			end
 
-			% Initialize the distance
-			minDist = Inf;
-
-			% Initialize the index
-			index = 1;
-
-			% Iterate over each point
-			for i = 1:size(points, 1)
-
-				% Calculate distance
-				pointDist = pdist2(from, points(i, :), 'euclidean');
-
-				% Update min distance and index
-				if pointDist < minDist
-					minDist = pointDist;
-					index = i;
-				end
-			end
-
 			% Get the closest point
-			closest = points(index, :);
+			closest = points(end, :);
 		end
 
 		function show(obj, varargin)

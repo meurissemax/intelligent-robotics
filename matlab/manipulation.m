@@ -77,7 +77,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 	fprintf('Analyzing the map to find tables...\n');
 
 	% Find center positions and radius of the tables
-	map.findTables();
+	map.findTables(robot.absPos);
 
 	% Initialize current table for analysis
 	if numel(map.tablesRadius) < 2
@@ -557,7 +557,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% If there is no more drop points, generate them
 				if isempty(dropPoints)
-					dropPoints = map.aroundTable(tablesCenter('empty'), tablesRadius('empty'), totalNumberObjects);
+					dropPoints = map.aroundTable(robot.absPos, tablesCenter('empty'), tablesRadius('empty'), totalNumberObjects);
 				end
 
 				% Check if there is at least a reachable point

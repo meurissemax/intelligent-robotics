@@ -670,6 +670,18 @@ classdef RobotController < handle
 					% Increment the index
 					objectIndex = objectIndex + 1;
 				end
+
+				% Calculate distance to robot for each point
+				distRobot = zeros(size(objectPos, 1), 1);
+
+				for i = 1:size(objectPos, 1)
+					distRobot(i) = pdist2(obj.absPos, objectPos(i, :), 'euclidean');
+				end
+
+				% Sort the distance and re order information
+				[~, distOrder] = sort(distRobot, 'descend');
+
+				objectPos = objectPos(distOrder, :);
 			end
 		end
 
