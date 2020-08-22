@@ -62,6 +62,9 @@ classdef RobotController < handle
 		% Distance between center of the robot and sensor
 		sensorToRef = [-0.0003, -0.25];
 
+		% Image of the empty gripper
+		emptyGripper
+
 		%%%%%%%%%%%%
 		% Odometry %
 		%%%%%%%%%%%%
@@ -113,6 +116,10 @@ classdef RobotController < handle
 			obj.secBetScan = secBetScan;
 			obj.itBetScan = round(secBetScan / timestep);
 			obj.scans = cell(obj.itBetScan, 5);
+
+			% Image of the empty gripper
+			load('mat/empty_gripper.mat', 'emptyGripper');
+			obj.emptyGripper = emptyGripper;
 
 			% Navigation difficulty
 			obj.navDifficulty = navDifficulty;
@@ -550,6 +557,36 @@ classdef RobotController < handle
 			end
 		end
 
+		function img = takePhoto(obj, varargin)
+			% Take a photo with the sensor and return it.
+			%
+			% An additional argument can be passed to choose
+			% the angle.
+
+			% Set the view angle
+			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', pi / 4, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Get the angle
+			if nargin > 1
+				ang = varargin{1};
+			else
+				ang = 0;
+			end
+
+			% Rotate the sensor
+			res = obj.vrep.simxSetObjectOrientation(obj.id, obj.h.rgbdCasing, obj.h.ref, [0, 0, (-pi / 2) + ang], obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Capture the photo
+			res = obj.vrep.simxSetIntegerSignal(obj.id, 'handle_rgb_sensor', 1, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+
+			% Get the captured photo
+			[res, ~, img] = obj.vrep.simxGetVisionSensorImage2(obj.id, obj.h.rgbSensor, 0, obj.vrep.simx_opmode_oneshot_wait);
+			vrchk(obj.vrep, res);
+		end
+
 		function pointCloud = take3DPointCloud(obj, varargin)
 			% Take a 3D point cloud with the sensor and return it.
 			%
@@ -573,7 +610,7 @@ classdef RobotController < handle
 			% Setup structure to handle 3D point cloud(s)
 			pointClouds = cell(1, numel(scanAngles));
 
-			% Reduce the view angle to pi / 8 in order to better see the objects
+			% Reduce the view angle to 'viewAngle'
 			res = obj.vrep.simxSetFloatSignal(obj.id, 'rgbd_sensor_scan_angle', viewAngle, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
@@ -769,6 +806,21 @@ classdef RobotController < handle
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'km_mode', 0, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res, true);
 
+			% Open the gripper before to be sure (for grasp only)
+			if strcmp(action, 'grasp')
+
+				% Check if gripper is already open
+				[~, gripperSignal] = obj.vrep.simxGetIntegerSignal(obj.id, 'gripper_open', obj.vrep.simx_opmode_oneshot_wait);
+
+				% Open the gripper, if needed
+				if gripperSignal ~= 1
+					res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 1, obj.vrep.simx_opmode_oneshot_wait);
+					vrchk(obj.vrep, res);
+
+					pause(3);
+				end
+			end
+
 			% Set the arm angles
 			for i = 1:size(armAngles, 1)
 				currentAngles = armAngles(i, :);
@@ -796,6 +848,38 @@ classdef RobotController < handle
 			end
 
 			pause(3);
+		end
+
+		function success = checkGrasp(obj, img)
+			% Analyze an image (of the gripper) to determine
+			% if the grasp has been a success (i.e. check
+			% if the gripper in the photo is empty or not).
+
+			% Crop images
+			rect = [130.51, 304.51, 242.98, 207.98];
+
+			empty = imcrop(obj.emptyGripper, rect);
+			img = imcrop(img, rect);
+
+			% Resize images
+			resFact = 0.25;
+
+			empty = imresize(empty, resFact);
+			img = imresize(img, resFact);
+
+			% Convert to gray
+			empty = rgb2gray(empty);
+			img = rgb2gray(img);
+
+			% Compute correlation coefficient
+			corrCoef = corr2(empty, img);
+
+			% Check if the grasp is a success or not
+			if corrCoef > 0.6
+				success = false;
+			else
+				success = true;
+			end
 		end
 	end
 

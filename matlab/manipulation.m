@@ -496,11 +496,22 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			% Grasp the object
 			robot.arm('grasp');
 
-			% Update the state
-			state = 'objective';
+			% Take a photo
+			img = robot.takePhoto(-pi);
 
-			% Reset the current point
-			currentGraspPoint = [];
+			% Check the grasping
+			if robot.checkGrasp(img)
+
+				% Update the state
+				state = 'objective';
+
+				% Reset the current point
+				currentGraspPoint = [];
+			else
+
+				% Update the state
+				state = 'grasp-align';
+			end
 
 		%%%%%%%%%%%%%%%%%%%%%
 		% 'objective' state %
