@@ -123,6 +123,10 @@ classdef RobotController < handle
 
 			% Navigation difficulty
 			obj.navDifficulty = navDifficulty;
+
+			% Initialize the mesh grid (for the data retrieving
+			% of the Hokuyo)
+			obj.setMeshGrid(1 / mapPrec);
 		end
 
 		function setInitPos(obj, mapDimensions)
@@ -514,7 +518,7 @@ classdef RobotController < handle
 		end
 
 		function increment(obj, displacement)
-			% Move the robot forward a little bit.
+			% Move the robot forward or backward a little bit.
 
 			% Set robot velocities
 			obj.forwBackVel = -sign(displacement);
@@ -645,8 +649,8 @@ classdef RobotController < handle
 
 		function nCenter = adjustTable(obj, data, radius)
 			% Analyze the data (point cloud of a table) to determine
-			% the nearest point to the robot center ('nCoord') and
-			% infer the center of the table coordinates ('nCenter').
+			% the nearest point to the robot center and infer the
+			% center of the table coordinates ('nCenter').
 
 			% Filter points
 			f = data(4, :) < 1.5 & data(2, :) < -0.05 & data(2, :) > -0.2;
@@ -953,7 +957,7 @@ classdef RobotController < handle
 			% well as the map with the saved scans.
 
 			% Display information
-			fprintf('Correcting information with scan matching...\n');
+			fprintf('Correcting information with sensors and scan matching...\n');
 
 			% By default, updated map is a simple copy of the correct map
 			updatedMap = copy(correctMap);

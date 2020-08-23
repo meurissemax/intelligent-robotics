@@ -52,7 +52,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 	objective = [];
 	hasAccCurrentObj = true;
 
-	% Initialize variables for 'explore' and 'analyze' states
+	% Initialize variables for 'explore' state
 	tableIndex = 1;
 
 	% Initialize variable for 'grasp' state
@@ -159,6 +159,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 		if strcmp(state, 'explore')
 
+			% Stop the robot
+			robot.stop();
+
 			% Check if all tables have been explored
 			if tableIndex > numel(map.tablesRadius)
 
@@ -222,7 +225,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 		elseif strcmp(state, 'adjust')
 
-			% We stop the robot
+			% Stop the robot
 			robot.stop();
 
 			% Take a (large) 3D point cloud of the table
@@ -253,44 +256,48 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 		elseif strcmp(state, 'analyze')
 
-			% We stop the robot
-			robot.stop();
-
 			% Check if robot is aligned with the table
 			if robot.checkObjective(currentTableAngle)
 
-				% Display information
-				fprintf('Analyzing the table...\n');
+				% Move the robot forward
+				if robot.forward('in', 0.65)
 
-				% Take a 3D point cloud of the table
-				pc = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
+					% Stop the robot
+					robot.stop();
 
-				% Determine table type and object positions
-				[tableType, objectPos] = robot.analyzeTable(pc);
+					% Display information
+					fprintf('Analyzing the table...\n');
 
-				% Update manipulation local variables
-				tablesCenter(tableType) = map.tablesCenter(tableIndex, :);
-				tablesRadius(tableType) = map.tablesRadius(tableIndex);
-				tablesObjects(tableType) = objectPos;
+					% Take a 3D point cloud of the table
+					pc = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
 
-				% Update the total number of objects
-				totalNumberObjects = totalNumberObjects + size(objectPos, 1);
+					% Determine table type and object positions
+					[tableType, objectPos] = robot.analyzeTable(pc);
 
-				% Update initial grasp points
-				if strcmp(tableType, currentDifficulty)
-					graspPoints = objectPos;
+					% Update manipulation local variables
+					tablesCenter(tableType) = map.tablesCenter(tableIndex, :);
+					tablesRadius(tableType) = map.tablesRadius(tableIndex);
+					tablesObjects(tableType) = objectPos;
+
+					% Update the total number of objects
+					totalNumberObjects = totalNumberObjects + size(objectPos, 1);
+
+					% Update initial grasp points
+					if strcmp(tableType, currentDifficulty)
+						graspPoints = objectPos;
+					end
+
+					% Display information
+					fprintf('Table detected as "%s".\n', tableType);
+
+					if ~strcmp(tableType, 'empty')
+						fprintf('%d object(s) detected on the table.\n', size(objectPos, 1));
+					end
+
+					% Update the current table and state
+					tableIndex = tableIndex + 1;
+					state = 'explore';
 				end
-
-				% Display information
-				fprintf('Table detected as "%s".\n', tableType);
-
-				if ~strcmp(tableType, 'empty')
-					fprintf('%d object(s) detected on the table.\n', size(objectPos, 1));
-				end
-
-				% Update the current table and state
-				tableIndex = tableIndex + 1;
-				state = 'explore';
 			else
 
 				% Update state
@@ -304,6 +311,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		%%%%%%%%%%%%%%%%%%%
 
 		elseif strcmp(state, 'objects')
+
+			% Stop the robot
+			robot.stop();
 
 			% If no table with objects has been found, stop the manipulation
 			if isempty(tablesCenter(currentDifficulty))
@@ -449,7 +459,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				state = 'grasp-adjust';
 
 				% Display information
-				fprintf('Adjusting to catch the object...\n');
+				fprintf('Adjusting to grasp the object...\n');
 			else
 
 				% Update state
@@ -461,7 +471,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		elseif strcmp(state, 'grasp-adjust')
 
 			% Move forward the robot
-			if robot.forward('in', 0.7)
+			if robot.forward('in', 0.65)
 
 				% Stop the robot (if needed)
 				robot.stop();
@@ -592,6 +602,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		%%%%%%%%%%%%%%%%%%%%%
 
 		elseif strcmp(state, 'objective')
+
+			% Stop the robot
+			robot.stop();
 
 			% If no empty table has been found, stop the manipulation
 			if isempty(tablesCenter('empty'))

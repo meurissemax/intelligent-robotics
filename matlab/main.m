@@ -77,13 +77,8 @@ function main()
 	%% Objects initialization %%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-	% Map and robot instance
 	map = classes.MapManager(mapWidth, mapHeight, mapPrec, numTables, radiusTables, navDifficulty);
 	robot = classes.RobotController(vrep, id, h, mapPrec, secBetScan, timestep, navDifficulty);
-
-	% Initialize the mesh grid (for the data retrieving
-	% of the Hokuyo)
-	robot.setMeshGrid(1 / mapPrec);
 
 
 	%%%%%%%%%%%%%%%%

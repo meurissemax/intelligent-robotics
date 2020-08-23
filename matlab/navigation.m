@@ -16,7 +16,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 
 	% Set the position of the robot and his neighborhood
 	% (radius of 2) to 0 (free position)
-	map.setNeighborhood(robot.absPos, 2, 0);
+	map.setNeighborhood(robot.absPos, 2, 0, true);
 
 	% Initialize copy of the map for correction purposes
 	correctMap = copy(map);

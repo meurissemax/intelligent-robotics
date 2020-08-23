@@ -352,7 +352,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Increase radius (to be sure to be accessible)
-			radius = 2.2 * radius;
+			radius = 2 * radius;
 
 			% Initialize array of points
 			rawPoints = zeros(number, 2);
