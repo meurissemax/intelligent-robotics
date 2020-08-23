@@ -235,9 +235,9 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			nCenter = robot.adjustTable(pc, map.tablesRadius(tableIndex));
 
 			% Update the center position of the table
-			map.setNeighborhood(map.tablesCenter(tableIndex, :), 5, 0, true);
+			map.updateTable(map.tablesCenter(tableIndex, :), 0);
 			map.tablesCenter(tableIndex, :) = nCenter;
-			map.setNeighborhood(map.tablesCenter(tableIndex, :), 1, 1, true);
+			map.updateTable(map.tablesCenter(tableIndex, :), 1);
 
 			% Refresh the map
 			map.show();
@@ -260,7 +260,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			if robot.checkObjective(currentTableAngle)
 
 				% Move the robot forward
-				if robot.forward('in', 0.65)
+				if robot.forward('in', 0.8)
 
 					% Stop the robot
 					robot.stop();

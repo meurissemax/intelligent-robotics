@@ -105,7 +105,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Set the points
-			setOccupancy(obj.map, points, value);
+			setOccupancy(obj.map, round(points, 1), value);
 		end
 
 		function setNeighborhood(obj, point, radius, value, varargin)
@@ -290,7 +290,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 					centers = round(centers ./ resizeFactor);
 
 					% Adjust radii
-					radii(:) = guessRadius * 1.2;
+					radii(:) = guessRadius;
 
 					% Transform to map coordinates system
 					centers = obj.matrixToMap(centers);
@@ -311,8 +311,8 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 					% Adjust poins representing the tables in the map
 					for i = 1:size(centers, 1)
-						obj.setNeighborhood(centers(i, :), 5, 0, true);
-						obj.setNeighborhood(centers(i, :), 1, 1, true);
+						obj.updateTable(centers(i, :), 0);
+						obj.updateTable(centers(i, :), 1);
 					end
 
 					% Save information
@@ -335,6 +335,22 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 		end
 
+		function updateTable(obj, center, value)
+			% Update the value of the point in the map that are
+			% inside the table whose center is 'center' with the
+			% value 'value'.
+
+			% Set the radius
+			if value == 0
+				radius = floor((obj.radiusTables * obj.prec) * 2);
+			else
+				radius = ceil((obj.radiusTables * obj.prec) / 2);
+			end
+
+			% Update values
+			obj.setNeighborhood(center, radius, value, true);
+		end
+
 		function points = aroundTable(obj, robotPos, center, radius, varargin)
 			% Generate 'number' (varargin 1) points equally spaced
 			% around a table centered at 'center' position and with
@@ -352,7 +368,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 			end
 
 			% Increase radius (to be sure to be accessible)
-			radius = 2 * radius;
+			radius = 2.5 * radius;
 
 			% Initialize array of points
 			rawPoints = zeros(number, 2);
