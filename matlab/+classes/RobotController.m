@@ -72,6 +72,9 @@ classdef RobotController < handle
 		% Previous values for the wheel angles
 		prevWheelAngles = [];
 
+		% Previous orientation
+		prevOr = [];
+
 		% Estimated position
 		estimatedPos = [];
 
@@ -189,6 +192,12 @@ classdef RobotController < handle
 				manipulation = false;
 			end
 
+			%%%%%%%%%%%%%%%
+			% Orientation %
+			%%%%%%%%%%%%%%%
+
+			obj.orientation = obj.getOrientationFromSensor();
+
 			%%%%%%%%%%%%
 			% Position %
 			%%%%%%%%%%%%
@@ -224,14 +233,16 @@ classdef RobotController < handle
 					[~, wheelAngles(i)] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(i), obj.vrep.simx_opmode_buffer);
 				end
 
-				% Set psi angle
-				psiAngle = obj.orientation(3) + pi / 2;
-
 				% If first entry in the loop
-				if isempty(obj.prevWheelAngles)
+				if isempty(obj.prevWheelAngles) || isempty(obj.prevOr)
 					obj.prevWheelAngles = wheelAngles;
+					obj.prevOr = obj.orientation;
+
 					elapsed = 0.05;
 				end
+
+				% Set psi angle
+				psiAngle = obj.prevOr(3) + pi / 2;
 
 				% Angular difference in the time considered
 				dw = wheelAngles - obj.prevWheelAngles;
@@ -239,7 +250,7 @@ classdef RobotController < handle
 
 				% Angular speeds to get displacement (values determined experimentally)
 				fb = -0.25 * (sum(dw)) * 0.05;
-				rot = 0.25 * (dw(1) + dw(2) - dw(3) - dw(4)) * 0.1274852;
+				rot = obj.orientation(3) - obj.prevOr(3);
 
 				% Linear speeds (forward-backward and rotational)
 				if elapsed < 0.05
@@ -271,6 +282,9 @@ classdef RobotController < handle
 				% Save wheel angles
 				obj.prevWheelAngles = wheelAngles;
 
+				% Save orientation
+				obj.prevOr = obj.orientation;
+
 				% Update position
 				obj.absPos = obj.estimatedPos;
 
@@ -285,12 +299,6 @@ classdef RobotController < handle
 					obj.secBetScanCounter = obj.secBetScanCounter + 1;
 				end
 			end
-
-			%%%%%%%%%%%%%%%
-			% Orientation %
-			%%%%%%%%%%%%%%%
-
-			obj.orientation = obj.getOrientationFromSensor();
 		end
 
 		function updateDataFromHokuyo(obj, varargin)
