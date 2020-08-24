@@ -380,19 +380,8 @@ classdef RobotController < handle
 				end
 			end
 
-			% Distance to some elements in front of the robot
-			inFrontPts = [0.1, 0.25, 0.5, 0.75, 0.9];
-			distFront = zeros(1, numel(inFrontPts));
-
-			sizeInPts = size(obj.inPts, 1);
-
-			for i = 1:numel(inFrontPts)
-				inFront = round(sizeInPts * inFrontPts(i));
-				distFront(i) = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFront, 1), obj.inPts(inFront, 2)], 'euclidean');
-			end
-
 			% Check if robot is too close to something
-			if sum(distFront < obj.nearTresh) > 0
+			if obj.checkFront(obj.nearTresh)
 				near = true;
 				obj.isNear = true;
 			end
@@ -511,14 +500,8 @@ classdef RobotController < handle
 			obj.leftRightVel = 0;
 			obj.rotVel = 0;
 
-			% Get point of Hokuyo to check
-			distPts = round(size(obj.inPts, 1) * 0.5);
-
-			% Distance to nearest element in front
-			distNear = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(distPts, 1), obj.inPts(distPts, 2)], 'euclidean');
-
-			% Check the condition
-			if distNear < maxDist
+			% Check if robot is too close to something
+			if obj.checkFront(maxDist)
 				near = true;
 			else
 				obj.drive();
@@ -958,6 +941,30 @@ classdef RobotController < handle
 			% Use the defined velocities of the robot to move it.
 
 			obj.h = youbot_drive(obj.vrep, obj.h, obj.forwBackVel, obj.leftRightVel, obj.rotVel);
+		end
+
+		function near = checkFront(obj, maxDist)
+			% Check if an obstancle is located in front of the
+			% robot. If the obstacle is too close (distance under
+			% 'maxDist'), 'check' is 'true', else 'check' is 'false'.
+			% Distances are calculted with Hokuyo sensor.
+
+			% By default, no obstacle
+			near = false;
+
+			% Distance to some elements in front of the robot
+			sizeInPts = size(obj.inPts, 1) / 5;
+			inFrontPts = round(2 * sizeInPts):1:round(3 * sizeInPts);
+			distFront = zeros(1, numel(inFrontPts));
+
+			for i = 1:numel(inFrontPts)
+				distFront(i) = pdist2([obj.absPos(1), obj.absPos(2)], [obj.inPts(inFrontPts(i), 1), obj.inPts(inFrontPts(i), 2)], 'euclidean');
+			end
+
+			% Check if robot is too close to something
+			if sum(distFront < maxDist) > 0
+				near = true;
+			end
 		end
 
 		function updatedMap = correctPositionAndScans(obj, correctMap, varargin)
