@@ -30,7 +30,7 @@ function main()
 	timestep = 0.05;
 
 	% Number of seconds between two scan matching
-	secBetScan = 60;
+	secBetScan = 30;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
