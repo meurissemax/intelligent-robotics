@@ -19,6 +19,9 @@ classdef RobotController < handle
 		% Data from Hokuyo
 		inPts
 		inValue
+
+		% Navigation difficulty
+		navDifficulty
 	end
 
 	properties (Access = private)
@@ -55,9 +58,6 @@ classdef RobotController < handle
 		nearTresh = 0.45;
 		isNear = false;
 		nearCounter = 0;
-
-		% Navigation difficulty
-		navDifficulty
 
 		% Distance between center of the robot and sensor
 		sensorToRef = [-0.0003, -0.25];
