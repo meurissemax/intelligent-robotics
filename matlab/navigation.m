@@ -21,8 +21,8 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 	% Initialize copy of the map for correction purposes
 	correctMap = copy(map);
 
-	% Initialize elapsed time for data update
-	elapsed = timestep;
+	% Initialize flag for the last correction
+	lastCorrect = false;
 
 	% Initialize total elapsed time counter
 	totalElapsed = timestep;
@@ -30,6 +30,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 	% Initialize the path and the objective of the robot
 	pathList = [];
 	objective = [];
+	mapObjective = [];
 
 	% Initialize the flag for the objective
 	hasAccCurrentObj = true;
@@ -58,7 +59,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		map = robot.updatePositionAndOrientation(elapsed, totalElapsed, map, correctMap);
+		map = robot.updatePositionAndOrientation(totalElapsed, map, correctMap);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -110,7 +111,9 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 				robot.stop();
 
 				% Display information
-				fprintf('Determining new objective and path...\n');
+				if ~lastCorrect
+					fprintf('Determining new objective and path...\n');
+				end
 
 				% We get the point from which we determine new path
 				% (front point of the Hokuyo)
@@ -124,25 +127,41 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 				% fully explored
 				if pathList == Inf
 
-					% Display information
-					fprintf('No new path available, map is fully explored ! Navigation will stop here.\n');
+					% Check if robot has corrected the map before stopping
+					if ~robot.hasCorrectedMap()
 
-					% Export the map
-					map.export(sceneName);
+						% Display information (the first time)
+						if ~lastCorrect
+							lastCorrect = true;
 
-					% Stop the simulation
-					return;
+							fprintf('Waiting for last correction before stopping...\n');
+						end
+
+						% Reset the path
+						pathList = [];
+					else
+
+						% Display information
+						fprintf('No new path available, map is fully explored ! Navigation will stop here.\n');
+
+						% Export the map
+						map.export(sceneName);
+
+						% Stop the simulation
+						return;
+					end
 				end
+			else
+
+				% Save the next objective to display it
+				mapObjective = pathList(end, :);
+
+				% Get the next objective
+				objective = map.matrixToMap(pathList(end, :));
+
+				% Remove the next objective from the path
+				pathList(end, :) = [];
 			end
-
-			% Save the next objective to display it
-			mapObjective = pathList(end, :);
-
-			% Get the next objective
-			objective = map.matrixToMap(pathList(end, :));
-
-			% Remove the next objective from the path
-			pathList(end, :) = [];
 		end
 
 
@@ -150,12 +169,15 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Move the robot depending of the objective %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		% We check if robot has accomplished its current objective
-		hasAccCurrentObj = robot.checkObjective(objective);
+		if ~isempty(objective)
 
-		% If robot has not accomplished its objective, we move it
-		if ~hasAccCurrentObj
-			robot.move(objective);
+			% We check if robot has accomplished its current objective
+			hasAccCurrentObj = robot.checkObjective(objective);
+
+			% If robot has not accomplished its objective, we move it
+			if ~hasAccCurrentObj
+				robot.move(objective);
+			end
 		end
 
 

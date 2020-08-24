@@ -30,9 +30,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 	tablesRadius = containers.Map(mapKey, {[], [], []});
 	tablesObjects = containers.Map(mapKey, {[], [], []});
 
-	% Initialize elapsed time for data update
-	elapsed = timestep;
-
 	% Initialize total elapsed time counter
 	totalElapsed = timestep;
 
@@ -118,7 +115,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		%% Update position and orientation of the robot %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		robot.updatePositionAndOrientation(elapsed, totalElapsed, map, map, true);
+		robot.updatePositionAndOrientation(totalElapsed, map, map, true);
 
 
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

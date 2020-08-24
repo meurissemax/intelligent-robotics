@@ -96,6 +96,9 @@ classdef RobotController < handle
 
 		% List of scans
 		scans
+
+		% Flag for the map correction
+		hasCorrected
 	end
 
 
@@ -179,7 +182,7 @@ classdef RobotController < handle
 			obj.Y = meshY;
 		end
 
-		function updatedMap = updatePositionAndOrientation(obj, elapsed, totalElapsed, map, correctMap, varargin)
+		function updatedMap = updatePositionAndOrientation(obj, totalElapsed, map, correctMap, varargin)
 			% Update the position and orientation of the robot.
 
 			% By default, the returned map does not change
@@ -237,8 +240,6 @@ classdef RobotController < handle
 				if isempty(obj.prevWheelAngles) || isempty(obj.prevOr)
 					obj.prevWheelAngles = wheelAngles;
 					obj.prevOr = obj.orientation;
-
-					elapsed = 0.05;
 				end
 
 				% Set psi angle
@@ -252,16 +253,6 @@ classdef RobotController < handle
 				fb = -0.25 * (sum(dw)) * 0.05;
 				rot = obj.orientation(3) - obj.prevOr(3);
 
-				% Linear speeds (forward-backward and rotational)
-				if elapsed < 0.05
-					elapsed = 0.05;
-				end
-
-				dt = elapsed;
-
-				fb = fb / dt;
-				rot = rot / dt;
-
 				if isnan(fb)
 					fb = 0;
 				end
@@ -270,8 +261,8 @@ classdef RobotController < handle
 				if abs(rot) > 10e-5
 
 					% If change in orientation
-					obj.estimatedPos(1) = obj.estimatedPos(1) - (fb / rot) * sin(psiAngle) + (fb / rot) * sin(psiAngle + rot * dt);
-					obj.estimatedPos(2) = obj.estimatedPos(2) + (fb / rot) * cos(psiAngle) - (fb / rot) * cos(psiAngle + rot * dt);
+					obj.estimatedPos(1) = obj.estimatedPos(1) - (fb / rot) * sin(psiAngle) + (fb / rot) * sin(psiAngle + rot);
+					obj.estimatedPos(2) = obj.estimatedPos(2) + (fb / rot) * cos(psiAngle) - (fb / rot) * cos(psiAngle + rot);
 				else
 
 					% If no change in orientation
@@ -292,12 +283,29 @@ classdef RobotController < handle
 				% Scan matching %
 				%%%%%%%%%%%%%%%%%
 
+				obj.hasCorrected = false;
+
 				if totalElapsed > obj.secBetScan * obj.secBetScanCounter
 					obj.stop();
 					updatedMap = obj.correctPositionAndScans(correctMap, manipulation);
 
 					obj.secBetScanCounter = obj.secBetScanCounter + 1;
 				end
+			end
+		end
+
+		function corrected = hasCorrectedMap(obj)
+			% Check if the robot has corrected the map (with
+			% scan matching) in the current iteration. This
+			% verification is useful only for difficulty that
+			% are not 'easy'.
+
+			% By default, map is corrected
+			corrected = true;
+
+			% If the difficulty is not 'easy'
+			if ~strcmp(obj.navDifficulty, 'easy')
+				corrected = obj.hasCorrected;
 			end
 		end
 
@@ -1043,6 +1051,9 @@ classdef RobotController < handle
 				% Assign the corrected map
 				updatedMap = copy(correctMap);
 			end
+
+			% Flag for the correction
+			obj.hasCorrected = true;
 
 			% Update the estimated position
 			obj.estimatedPos = truePos;
