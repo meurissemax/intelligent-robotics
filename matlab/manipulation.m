@@ -29,12 +29,16 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 	tablesCenter = containers.Map(mapKey, {[], [], []});
 	tablesRadius = containers.Map(mapKey, {[], [], []});
 	tablesObjects = containers.Map(mapKey, {[], [], []});
+	tablesIndex = containers.Map(mapKey, {[], [], []});
 
 	% Initialize total elapsed time counter
 	totalElapsed = timestep;
 
 	% Initialize total number of object
 	totalNumberObjects = 0;
+
+	% Initialize flag for point cloud adjustements
+	pcAngle = false;
 
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -228,7 +232,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			robot.stop();
 
 			% Take a (large) 3D point cloud of the table
-			pc = robot.take3DPointCloud((-pi / 3):(pi / 6):(pi / 3), pi / 6);
+			pc = robot.take3DPointCloud((-pi / 6):(pi / 6):(pi / 6), pi / 6);
 
 			% Determine nearest point of the table
 			nCenter = robot.adjustTable(pc, map.tablesRadius(tableIndex));
@@ -259,7 +263,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			if robot.checkObjective(currentTableAngle)
 
 				% Move the robot forward
-				if robot.forward('in', 0.8)
+				if robot.forward('in', 0.6)
 
 					% Stop the robot
 					robot.stop();
@@ -277,6 +281,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 					tablesCenter(tableType) = map.tablesCenter(tableIndex, :);
 					tablesRadius(tableType) = map.tablesRadius(tableIndex);
 					tablesObjects(tableType) = objectPos;
+					tablesIndex(tableType) = tableIndex;
 
 					% Update the total number of objects
 					totalNumberObjects = totalNumberObjects + size(objectPos, 1);
@@ -407,23 +412,35 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Get angle with map position
 				tableObjectsAngle = robot.getAngleTo(tablesCenter(currentDifficulty));
-			else
+			elseif ~pcAngle
 
 				% Take a (large) 3D point cloud of the table
-				pc = robot.take3DPointCloud((-pi / 3):(pi / 6):(pi / 3), pi / 6);
+				pc = robot.take3DPointCloud((-pi / 6):(pi / 6):(pi / 6), pi / 6);
 
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius(currentDifficulty));
 
+				% Update the center position of the table
+				map.updateTable(tablesCenter(currentDifficulty), 0);
+				map.tablesCenter(tablesIndex(currentDifficulty), :) = nCenter;
+				map.updateTable(tablesCenter(currentDifficulty), 1);
+
+				% Refresh the map
+				map.show();
+
 				% Get angle to be aligned with the table
 				tableObjectsAngle = robot.getAngleTo(nCenter);
+
+				% Update the flag
+				pcAngle = true;
 			end
 
 			% Check if robot is aligned with the table
 			if robot.checkObjective(tableObjectsAngle)
 
-				% Reset the angle
+				% Reset the angle and flag
 				tableObjectsAngle = [];
+				pcAngle = false;
 
 				% Take a 3D point cloud
 				pointCloud = robot.take3DPointCloud((-pi / 4):(pi / 32):(pi / 4));
@@ -470,26 +487,38 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Get angle with map position
 				objectAngle = robot.getAngleTo(currentGraspPoint);
-			else
+			elseif ~pcAngle
 
 				% Take a (large) 3D point cloud of the table
-				pc = robot.take3DPointCloud((-pi / 3):(pi / 6):(pi / 3), pi / 6);
+				pc = robot.take3DPointCloud((-pi / 6):(pi / 6):(pi / 6), pi / 6);
 
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius(currentDifficulty));
 
+				% Update the center position of the table
+				map.updateTable(tablesCenter(currentDifficulty), 0);
+				map.tablesCenter(tablesIndex(currentDifficulty), :) = nCenter;
+				map.updateTable(tablesCenter(currentDifficulty), 1);
+
+				% Refresh the map
+				map.show();
+
 				% Get angle to be aligned with the table
 				objectAngle = robot.getAngleTo(nCenter);
+
+				% Update the flag
+				pcAngle = true;
 			end
 
 			% Check if robot is aligned with the table
 			if robot.checkObjective(objectAngle)
 
-				% Reset the angle
+				% Reset the angle and flag
 				objectAngle = [];
+				pcAngle = false;
 
 				% Update state
-				state = 'grasp-adjust';
+				state = 'grasp-forward';
 
 				% Display information
 				fprintf('Adjusting to grasp the object...\n');
@@ -501,63 +530,68 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				state = 'rotate';
 			end
 
-		elseif strcmp(state, 'grasp-adjust')
+		elseif strcmp(state, 'grasp-forward')
 
 			% Move forward the robot
-			if robot.forward('in', 0.65)
+			if robot.forward('in', 0.5)
 
-				% Stop the robot (if needed)
-				robot.stop();
+				% Update state
+				state = 'grasp-adjust';
+			end
 
-				% Take a 3D point cloud
-				pc = robot.take3DPointCloud((-pi / 16):(pi / 32):(pi / 16));
+		elseif strcmp(state, 'grasp-adjust')
 
-				% Analyze the point cloud
-				[rotAlign, sensorDist, currentObj] = robot.adjustPosition(pc, currentObj);
+			% Stop the robot (if needed)
+			robot.stop();
 
-				% Check if object is too far for the robot (due
-				% to an error or something else before)
-				if sensorDist > 0.5
+			% Take a 3D point cloud
+			pc = robot.take3DPointCloud((-pi / 8):(pi / 32):(pi / 8));
 
-					% Reset the closest object relative position
-					currentObj = [0, 0];
+			% Analyze the point cloud
+			[rotAlign, sensorDist, currentObj] = robot.adjustPosition(pc, currentObj);
+
+			% Check if object is too far for the robot (due
+			% to an error or something else before)
+			if sensorDist > 0.5
+
+				% Reset the closest object relative position
+				currentObj = [0, 0];
+
+				% Update state
+				graspPoints = [];
+				currentGraspPoint = [];
+
+				state = 'grasp';
+
+				% Display information
+				fprintf('Object is too far, try a new position.\n');
+			else
+
+				if rotAlign ~= 0
 
 					% Update state
-					graspPoints = [];
-					currentGraspPoint = [];
-
-					state = 'grasp';
-
-					% Display information
-					fprintf('Object is too far, try a new position.\n');
+					previousState = state;
+					rotateObjective = robot.orientation(3) + rotAlign;
+					state = 'rotate';
 				else
 
-					if rotAlign ~= 0
+					% Calculate the displacement
+					displacement = sensorDist - 0.33;
+
+					if abs(displacement) < 0.01
+
+						% Reset the closest object relative position
+						currentObj = [0, 0];
 
 						% Update state
-						previousState = state;
-						rotateObjective = robot.orientation(3) + rotAlign;
-						state = 'rotate';
+						state = 'grasp-half';
+
+						% Display information
+						fprintf('Trying to grasp the object...\n');
 					else
 
-						% Calculate the displacement
-						displacement = sensorDist - 0.33;
-
-						if abs(displacement) < 0.01
-
-							% Reset the closest object relative position
-							currentObj = [0, 0];
-
-							% Update state
-							state = 'grasp-half';
-
-							% Display information
-							fprintf('Trying to grasp the object...\n');
-						else
-
-							% Move the robot a little bit
-							robot.increment(displacement);
-						end
+						% Move the robot a little bit
+						robot.increment(displacement);
 					end
 				end
 			end
@@ -716,23 +750,35 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Get angle (by checking on the map position)
 				tableObjectiveAngle = robot.getAngleTo(tablesCenter('empty'));
-			else
+			elseif ~pcAngle
 
 				% Take a (large) 3D point cloud of the table
-				pc = robot.take3DPointCloud((-pi / 3):(pi / 6):(pi / 3), pi / 6);
+				pc = robot.take3DPointCloud((-pi / 6):(pi / 6):(pi / 6), pi / 6);
 
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius('empty'));
 
+				% Update the center position of the table
+				map.updateTable(tablesCenter('empty'), 0);
+				map.tablesCenter(tablesIndex('empty'), :) = nCenter;
+				map.updateTable(tablesCenter('empty'), 1);
+
+				% Refresh the map
+				map.show();
+
 				% Get angle to be aligned with the table
 				tableObjectiveAngle = robot.getAngleTo(nCenter);
+
+				% Update the flag
+				pcAngle = true;
 			end
 
 			% Check if robot is aligned with the table
 			if robot.checkObjective(tableObjectiveAngle)
 
-				% Reset angle
+				% Reset angle and flag
 				tableObjectiveAngle = [];
+				pcAngle = true;
 
 				% Update state
 				state = 'drop-forward';
@@ -747,7 +793,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		elseif strcmp(state, 'drop-forward')
 
 			% Move the robot forward until it is near the table
-			if robot.forward('in', 0.55)
+			if robot.forward('in', 0.50)
 
 				% Update state
 				state = 'drop-half';
@@ -809,6 +855,8 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				pathList = [];
 				objective = [];
+
+				gotoObjective = robot.absPos;
 
 				hasAccCurrentObj = true;
 			end

@@ -375,7 +375,7 @@ classdef RobotController < handle
 
 				% If the counter reach the limit, reset
 				% it and the near flag
-				if obj.nearCounter == 100
+				if obj.nearCounter == 50
 					obj.isNear = false;
 					obj.nearCounter = 0;
 
@@ -652,7 +652,7 @@ classdef RobotController < handle
 			% center of the table coordinates ('nCenter').
 
 			% Filter points
-			f = data(4, :) < 1.5 & data(2, :) < -0.05 & data(2, :) > -0.2;
+			f = data(4, :) < 1.8 & data(2, :) < -0.05 & data(2, :) > -0.2;
 			data = data(:, f);
 
 			% Remove center point (robot itself)
@@ -961,8 +961,8 @@ classdef RobotController < handle
 			near = false;
 
 			% Distance to some elements in front of the robot
-			sizeInPts = size(obj.inPts, 1) / 5;
-			inFrontPts = round(2 * sizeInPts):1:round(3 * sizeInPts);
+			sizeInPts = size(obj.inPts, 1) / 10;
+			inFrontPts = round(3 * sizeInPts):1:round(7 * sizeInPts);
 			distFront = zeros(1, numel(inFrontPts));
 
 			for i = 1:numel(inFrontPts)
@@ -970,6 +970,10 @@ classdef RobotController < handle
 			end
 
 			% Check if robot is too close to something
+			if ~strcmp(obj.navDifficulty, 'easy')
+				maxDist = maxDist * 1.2;
+			end
+
 			if sum(distFront < maxDist) > 0
 				near = true;
 			end
