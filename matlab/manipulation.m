@@ -541,7 +541,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 					else
 
 						% Calculate the displacement
-						displacement = sensorDist - 0.35;
+						displacement = sensorDist - 0.33;
 
 						if abs(displacement) < 0.01
 

@@ -830,14 +830,14 @@ classdef RobotController < handle
 				gripperAction = 0;
 
 				armAngles = [ ...
-					0, - (pi / 8) * 2, - (pi / 8) * 6, pi / 2, 0; ...
-					0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0; ...
-					0, - (pi / 16) * 6, -(pi * 6) / 16, (pi / 2) - (4 * pi) / 16, 0 ...
+					0, -pi / 4, -(3 * pi) / 4, pi / 2, 0; ...
+					0, -pi / 4, -pi / 2, (2 * pi) / 8, 0; ...
+					0, -(2.6 * pi) / 8, -pi / 2, (2.6 * pi) / 8, 0 ...
 				];
 			else
 				gripperAction = 1;
 
-				armAngles = [0, - (pi / 8) * 2, - (pi / 8) * 4, (pi / 2) - (2 * pi) / 8, 0];
+				armAngles = [0, -(2.3 * pi) / 8, -pi / 2, (2.3 * pi) / 8, 0];
 			end
 
 			% Remove inverse kinematic mode (to be sure)
@@ -855,7 +855,7 @@ classdef RobotController < handle
 					res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', 1, obj.vrep.simx_opmode_oneshot_wait);
 					vrchk(obj.vrep, res);
 
-					pause(3);
+					pause(2);
 				end
 			end
 
@@ -868,14 +868,14 @@ classdef RobotController < handle
 					vrchk(obj.vrep, res, true);
 				end
 
-				pause(3);
+				pause(4);
 			end
 
 			% Use the gripper
 			res = obj.vrep.simxSetIntegerSignal(obj.id, 'gripper_open', gripperAction, obj.vrep.simx_opmode_oneshot_wait);
 			vrchk(obj.vrep, res);
 
-			pause(3);
+			pause(2);
 
 			% Reset the arm position
 			resetAngles = [0, 0.74, pi / 4, pi / 2, 0];
@@ -885,7 +885,7 @@ classdef RobotController < handle
 				vrchk(obj.vrep, res, true);
 			end
 
-			pause(3);
+			pause(4);
 		end
 
 		function success = checkGrasp(obj, img)
