@@ -381,7 +381,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 			else
 
 				% Get nearest point (around the table) to the grasp point
-				nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 40);
+				nearestGraspPoint = map.findClosestToTable(currentGraspPoint, tablesCenter(currentDifficulty), tablesRadius(currentDifficulty), 20);
 
 				if isnan(nearestGraspPoint)
 					fprintf('Unable to find a reachable point close to the table.\n');
@@ -713,7 +713,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% If there is no more drop points, generate them
 				if isempty(dropPoints)
-					dropPoints = map.aroundTable(robot.absPos, tablesCenter('empty'), tablesRadius('empty'), totalNumberObjects);
+					dropPoints = map.aroundTable(robot.absPos, tablesCenter('empty'), tablesRadius('empty'), min(6, totalNumberObjects));
 				end
 
 				% Check if there is at least a reachable point
@@ -794,7 +794,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 		elseif strcmp(state, 'drop-forward')
 
 			% Move the robot forward until it is near the table
-			if robot.forward('in', 0.50)
+			if robot.forward('in', 0.45)
 
 				% Update state
 				state = 'drop-half';

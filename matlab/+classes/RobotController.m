@@ -51,7 +51,7 @@ classdef RobotController < handle
 		rotVelFact = 1.5;
 
 		% Movements tolerances
-		movPrec = 0.25;
+		movPrec = 0.2;
 		rotPrec = 0.01;
 
 		% Parameter when the robot is near an obstacle
