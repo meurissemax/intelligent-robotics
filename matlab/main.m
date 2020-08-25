@@ -29,7 +29,7 @@ function main()
 	% Timestep of the simulator
 	timestep = 0.05;
 
-	% Number of seconds between two scan matching
+	% Number of seconds between two scans correction
 	secBetScan = 30;
 
 

@@ -66,10 +66,10 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Update data from Hokuyo %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		% Update the data of the robot
+		% Update data of the robot with Hokuyo
 		robot.updateDataFromHokuyo();
 
-		% Update the map with data from Hokuyo
+		% Update map with data from Hokuyo
 		map.setPoints(robot.inValue, 0);
 		map.setPoints(robot.inPts, 1);
 
@@ -78,7 +78,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Check if robot is near an obstacle %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		% If the robot is to close to an obstacle, stop it
+		% If the robot is too close to an obstacle, stop it
 		% and reset the path and objective (in order to re
 		% define new ones and save the robot).
 
@@ -96,7 +96,7 @@ function navigation(vrep, id, timestep, map, robot, sceneName)
 		%% Define new path and objective, if needed %%
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-		% We check if the robot has accomplished his current objective.
+		% We check if the robot has accomplished its current objective.
 		% If yes, set a new objective.
 		% If no, the robot has to move to this objective (so, change nothing).
 

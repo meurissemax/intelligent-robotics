@@ -78,20 +78,20 @@ classdef RobotController < handle
 		% Estimated position
 		estimatedPos = [];
 
-		%%%%%%%%%%%%%%%%%
-		% Scan matching %
-		%%%%%%%%%%%%%%%%%
+		%%%%%%%%%%%%%%%%%%%%
+		% Scans correction %
+		%%%%%%%%%%%%%%%%%%%%
 
 		% Scan index
 		scanIndex = 1;
 
-		% Number of seconds between two scan matching
+		% Number of seconds between two scans correction
 		secBetScan
 
 		% Counter to have the correct number of seconds
 		secBetScanCounter = 1;
 
-		% Number of iterations between two scan matching
+		% Number of iterations between two scans correction
 		itBetScan
 
 		% List of scans
@@ -118,7 +118,7 @@ classdef RobotController < handle
 			% Map information
 			obj.mapPrec = mapPrec;
 
-			% Scan matching
+			% Scans correction
 			obj.secBetScan = secBetScan;
 			obj.itBetScan = round(secBetScan / timestep);
 			obj.scans = cell(obj.itBetScan, 5);
@@ -279,9 +279,9 @@ classdef RobotController < handle
 				% Update position
 				obj.absPos = obj.estimatedPos;
 
-				%%%%%%%%%%%%%%%%%
-				% Scan matching %
-				%%%%%%%%%%%%%%%%%
+				%%%%%%%%%%%%%%%%%%%%
+				% Scans correction %
+				%%%%%%%%%%%%%%%%%%%%
 
 				obj.hasCorrected = false;
 
@@ -296,7 +296,7 @@ classdef RobotController < handle
 
 		function corrected = hasCorrectedMap(obj)
 			% Check if the robot has corrected the map (with
-			% scan matching) in the current iteration. This
+			% scans correction) in the current iteration. This
 			% verification is useful only for difficulty that
 			% are not 'easy'.
 
@@ -984,7 +984,7 @@ classdef RobotController < handle
 			% well as the map with the saved scans.
 
 			% Display information
-			fprintf('Correcting information with sensors and scan matching...\n');
+			fprintf('Correcting information with sensors and scans correction...\n');
 
 			% By default, updated map is a simple copy of the correct map
 			updatedMap = copy(correctMap);

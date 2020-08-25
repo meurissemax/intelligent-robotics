@@ -11,9 +11,10 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 	% Display information
 	fprintf('\n****************\n* Manipulation *\n****************\n\n');
 
-	% Load the map and set initial position of the robot, if needed
+	% Load the map
 	map.load(sceneName);
 
+	% Set initial position of the robot, if needed
 	if nargin > 7
 		if varargin{1}
 			robot.setInitPos([map.width, map.height]);
@@ -188,7 +189,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 					state = 'explore-align';
 				else
 
-					% Bring the robot to the current table
+					% Update state
 					previousState = state;
 					gotoObjective = currentTablePos;
 					state = 'goto';
