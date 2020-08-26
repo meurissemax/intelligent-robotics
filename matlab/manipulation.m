@@ -421,14 +421,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius(currentDifficulty));
 
-				% Update the center position of the table
-				map.updateTable(tablesCenter(currentDifficulty), 0);
-				map.tablesCenter(tablesIndex(currentDifficulty), :) = nCenter;
-				map.updateTable(tablesCenter(currentDifficulty), 1);
-
-				% Refresh the map
-				map.show();
-
 				% Get angle to be aligned with the table
 				tableObjectsAngle = robot.getAngleTo(nCenter);
 
@@ -495,14 +487,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius(currentDifficulty));
-
-				% Update the center position of the table
-				map.updateTable(tablesCenter(currentDifficulty), 0);
-				map.tablesCenter(tablesIndex(currentDifficulty), :) = nCenter;
-				map.updateTable(tablesCenter(currentDifficulty), 1);
-
-				% Refresh the map
-				map.show();
 
 				% Get angle to be aligned with the table
 				objectAngle = robot.getAngleTo(nCenter);
@@ -758,14 +742,6 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 				% Determine nearest point of the table
 				nCenter = robot.adjustTable(pc, tablesRadius('empty'));
-
-				% Update the center position of the table
-				map.updateTable(tablesCenter('empty'), 0);
-				map.tablesCenter(tablesIndex('empty'), :) = nCenter;
-				map.updateTable(tablesCenter('empty'), 1);
-
-				% Refresh the map
-				map.show();
 
 				% Get angle to be aligned with the table
 				tableObjectiveAngle = robot.getAngleTo(nCenter);
