@@ -79,7 +79,7 @@
     
     The second step consisted of transporting, using the robot arm, objects from one table to another. This task, which we will call "manipulation" later, is fully explained in section \ref{sec:manipulation}.
     
-    Both tasks must be performed completely autonomously by the robot, regardless of the environment in which it is located. No human intervention shall be necessary.
+    Both tasks must be performed completely autonomously by the robot, regardless of the environment in which it is located. No human intervention should be necessary.
     
     To carry out this project, we used the V-REP simulator (from \href{https://www.coppeliarobotics.com}{Coppelia Robotics}) to simulate the youBot and its environment. We used the MATLAB language and several of its toolboxes to program and plan the robot's actions.
     
@@ -158,7 +158,7 @@
     
     For the second navigation milestone, we only have access to the GPS data every minute. The approach we have thus taken is to estimate the position and orientation of the robot at each time step via the odometry.
     
-    When looking at the function \texttt{youbot\_drive}, we have seen that the angular displacements and rotation between two-time steps can easily be retrieved via a linear combination of the movement of each wheel. Multiplying these values by the radius of the wheels of the robot (\SI{5}{\centi\meter} for the displacements and an experimental value of about \SI{12.75}{\centi\meter} for the rotation), we can get the linear displacements and the rotation in radian. However, the rotation has finally been estimated thanks to the orientation sensors, since it is available at any time. The value we obtain with the linear combination is discussed in our SLAM attempts section. 
+    When looking at the function \texttt{youbot\_drive}, we have seen that the angular displacements and rotation between two timesteps can easily be retrieved via a linear combination of the movement of each wheel. Multiplying these values by the radius of the wheels of the robot (\SI{5}{\centi\meter} for the displacements and an experimental value of about \SI{12.75}{\centi\meter} for the rotation), we can get the linear displacements and the rotation in radian. However, the rotation has finally been estimated thanks to the orientation sensors, since it is available at any time. The value we obtain with the linear combination is discussed in our SLAM attempts section. 
     
     Plugging these values in the following equations, taken from \cite{probaRobotics} ($v$ is the forward velocity during the time step and $w$ the rotational one),
 
@@ -178,66 +178,64 @@
 
     we retrieve correct approximations of the displacement of the youBot along both axes. However, we have a slight deviation between the estimated position and the real one. In order to correct that, we could have gone for a particle filter, however we do not believe it would have lead to a better solution that the one we have chosen.
     
-    We have realized that the deviation from the estimated position to the real one evolves in a quasi-linear fashion in our \SI{60}{\second} runs between two corrections. In order to correct our belief about the map, we have thus decided to simply compute the deviation between the estimated position and the real one at the correction phase, to divide that number by the amount of scans done in that time in order to get the increment of position to correct between two scans, and to correct these scans by modifying the position of the youBot accordingly. The result of these scans are then put in a map that holds only corrected values, and from which the running map is copied after every corrections.
+    We have realized that the deviation from the estimated position to the real one evolves in a quasi-linear fashion in our \SI{60}{\second} runs between two corrections. In order to correct our belief about the map, we have thus decided to simply stop the robot, compute the deviation between the estimated position and the real one at the correction phase, to divide that number by the amount of scans done in that time in order to get the increment of position to correct between two scans, and to correct these scans by modifying the position of the youBot accordingly. The result of these scans are then put in a map that holds only corrected values, and from which the running map is copied after every corrections.
     
-    This does not yield a perfect result every time, but we obtain a map that is usable without problems in the manipulation step.
+    This does not yield as clean a result as with the GPS data available at any time, but we obtain a map that is usable without problems in the manipulation step.
     
     \subsubsection{SLAM}
     
     In order to implement the SLAM, we have tried numerous things, but none has provided reasonable results. 
     
-    We have based ourselves on the odometry for the estimation of the youbot state, but we found no ways to reliably link the odometry to the rotation, whereas we had almost no problem doing so for the forward movement. This certainly comes from the physics constraints of the simulator and the fact that there is a lot of friction and slipping for low angles of rotation.
-    
-    Thus, with that highly imperfect prediction of the rotation, we decided to try correcting every few steps with some scan matching, as the SLAM algorithm of MATLAB is supposed to do, but we reached no success and had a very bad map from the first seconds. We also tried using the MATLAB SLAM facility but it also lead to very bad results. We also tried implementing our own particle filter, using the odometry equations as state transition function and adding Gaussian incertitude to the values of $v$ and $w$, but it lead nowhere. Since we had no way of having a real measurement to correct ourselves, it is not very surprising. The estimation given by the wheels was more precise than any measurement for the displacements, but nothing was precise enough for the rotation. Our only other mean of getting a measurement was through scan matching, and it was not precise enough. We did not try to implement a Kalman Filter since we thought it would not provide better results, and our time was running short.
-    
-    \textbf{Talk about relaxations, and the fact that we don't have beacons nor their positions nor their numbers, and even so we would deviate in the snake part since there is no beacon there. -> SLAM is designed to fuck us.}
-    
-    The estimation of the $w$ based on the odometry, however, is far from perfect. Indeed, the relationship that exists between the linear combination of the angular movement of the wheels and the real rotation is semi-linear, but with high variance for small angles, as can be seen in Fig. \ref{fig:slam.relationship.rotation}.
+    We have based ourselves on the odometry for the estimation of the youBot state, but we found no ways to reliably link the odometry to the rotation, whereas we had almost no problem doing so for the forward movement. This certainly comes from the physics constraints of the simulator and the fact that there is a lot of friction and slipping for low angles of rotation. That is show in Fig. \ref{fig:slam.relationship.rotation}. As can be seen, the relationship is mostly linear, but the uncertainties are more prominent for small angles, which is what we mostly work with. Thus, the angle uncertainty from one iteration to the next is too high to allow us to obtain a correct approximation of the pose of the youBot. Trying to correct the angle such that the updated map is as coherent as possible with respect to the non updated one was tried but yielded poor results. The approach taken was to select a range of angles near the estimated one and, for each one, to compute a map score such that the angle giving the smallest score would be the one closest to the real one. The problem is that, to gain enough precision, we would have had to try a lot of possible angles, which slowed our program too much and still yielded poor estimations.\footnote{The score was computed in such a way that an occupied location becoming free or conversely would increase it, while keeping the same value would decrease the score, and the locations were chosen in a close range near the estimated position.} It was thus dismissed.
     
     \begin{figure}[!h]
         \centering
-        \includegraphics[width=0.4\textwidth]{resources/png/relationship-rotation.png}
+        \includegraphics[width=0.45\textwidth]{resources/png/deviation-angle.png}
         \caption{Relationship between the linear combination of the angular movement of the wheels and the real rotation.}
         \label{fig:slam.relationship.rotation}
     \end{figure}
     
-    Since we have access to the real orientation at all times, it is actually not necessary to estimate the orientation based on the odometry, but it was done in the hope we would get a working SLAM.
+    So, with that highly imperfect prediction of the rotation, we decided to try correcting every few steps with some scan matching, as the SLAM algorithm of MATLAB is supposed to do, but we reached no success and had a very bad map from the first seconds. We also tried using the MATLAB SLAM facility but it also lead to very bad results and was not stable. We also tried implementing our own particle filter, using the odometry equations as state transition function and adding Gaussian incertitude to the values of $v$ and $w$, but it lead nowhere. Since we had no way of having a real measurement to correct ourselves, it is not very surprising. The estimation given by the wheels was more precise than any measurement for the displacements, but nothing was precise enough for the rotation. Our only other mean of getting a measurement was through scan matching, and it was not precise enough. We did not try to implement a Kalman Filter since we thought it would not provide better results, another group had had no success with it, and our time was running short.
+    
+    We also tried relaxing the constraint stating that we could not use the sensor data for the orientation. Although the results obtained based only on the odometry were thus quite good, we would never have any measurement that is absolute and would allow us to correct ourselves. We would thus have no choice but to deviate slowly. Having beacons and their absolute positions, as well as sensors telling us were they are exactly with respect to our position would have greatly facilitated the SLAM part and allowed us to limit the deviation. However, such beacons were the tables, which would not have been useful since there was none of those in the snake-like part of the map, and so we would have had no way to detect our deviation. Furthermore, to identify such beacons, we would have had to know the environment first, and keeping track of them as it is would have required photos to be taken to be sure they are correctly identified and not false positives, which is too expensive if we wish to stay below the \SI{50}{\milli\second} for the simulation.\footnote{While writing this, we realized we may have used the Hokuyo to detect round shaped and estimate the position of the beacon. However, few rays reaching the tables would have not been precise enough, and it did not solve our problem in the snake-like part of the map.}
     
     \subsection{Update data from Hokuyo}
     
     This stage consists in recovering the various points captured by the Hokuyo. We differentiate between free points and contact points and then transform them into absolute coordinates to insert them in our representation of the environment (by default, the points are in coordinates relative to the robot).
     
-    The transformation of all the points of the Hokuyo is quite expensive. We used a function, found on the Internet, which simplifies the polygon formed by these points in order to accelerate the process considerably while preserving the appearance of the polygon.
+    The transformation of all the points of the Hokuyo is quite expensive. We used a function, found on the Internet (\cite{youbotexplorationyt}), which simplifies the polygon formed by these points in order to accelerate the process considerably while preserving the appearance of the polygon.
     
-    The free points are inserted as such in our map, and the contact points are inserted as walls in our map. It is therefore this step that updates our representation of the environment.
+    The free points are inserted as such in our map, and the contact points are inserted as walls/obstacles in our map. It is therefore this step that updates our representation of the environment.
     
     Our implementation, and especially the coordinate transformation, is strongly based on the one given as an example on the \href{https://github.com/ULgRobotics/trs}{GitHub of the course}.
     
-    When we don't have access to GPS constantly, we save the different data from the Hokuyo at each iteration in order to correct them later.
+    When we don't have access to GPS constantly, we also save the different data from the Hokuyo at each iteration in order to correct them later.
     
     \subsection{Obstacle nearby}
     
     When the robot is moving, it can sometimes move towards an obstacle without knowing it (because initially, this obstacle was not yet discovered on the map). To prevent the robot from rushing into it, we have implemented a mechanism that allows it to stop and start again.
     
-    To know if an obstacle is near (and in front of) the robot, we select several frontal rays of the Hokuyo and calculate the distances between the robot and the contact points of these rays. If only one of these distances is less than a threshold (which we have set at \SI{50}{\centi\meter} from the center of the robot), we immediately stop the robot. We reset his objective so that he determines a new one and starts again correctly.
+    To know if an obstacle is near (and in front of) the robot, we select several frontal rays of the Hokuyo and calculate the distances between the robot and the contact points of these rays. If only one of these distances is less than a threshold (which we have set at \SI{50}{\centi\meter} from the center of the robot), we immediately stop the robot. We reset its objective so that it determines a new one and starts again correctly.
     
     When an obstacle has been detected, we no longer perform the check for \num{50} iterations to allow time for the robot to move. Indeed, if the robot is close to an obstacle, it would constantly be considered as such if we check at each iteration and would therefore remain blocked for an infinite time (since it would stop at each iteration and would not have the time to move).
     
     \subsection{Objectives and path finding}
     
-    To move the robot, we use a goal and path system. We can distinguish two types of objectives: the current objective and the final objective. The current objective is the next point to which the robot must go. The final objective is the endpoint to which the robot must go.
+    To move the robot, we use a goal and path system. We can distinguish two types of objectives: the current objective and the final objective. The current objective is the next point the robot must go to. The final objective is the endpoint to which the robot must go.
     
     So the first time we calculate a final objective for the robot. The latter is simply the closest unexplored point of the robot on the map. In order to avoid choosing unreachable points, we check that the found point is surrounded by at least one free (thus reachable) point. When this point is determined, we calculate a path to it using the A* algorithm. Once the path is obtained, we determine the robot's next point, its current objective, by simply taking the first point of the path (and removing it from it).
     
-    In the next iterations, we check on the robot has a current target. If it does, then we don't do anything more, we let the robot go there. If the robot no longer has a current objective, we choose a new one by taking the first point of the path. And if the path is empty, i.e. the robot has reached its final goal, we recalculate a new next point to explore, and the cycle starts again.
+    In the next iterations, we check if the robot has a current target. If it does, then we don't do anything more, we let the robot go there. If the robot no longer has a current objective, we choose a new one by taking the first point of the path. And if the path is empty, i.e. the robot has reached its final goal, we recalculate a new next point to explore, and the cycle starts again.
     
-    We consider the navigation is finished when no new point to explore can be determined. Indeed, in this case, it means that all points have been explored. We had the initial idea to use, in addition to this technique, a percentage of exploration: we would stop the navigation when the robot had explored more than 99.5\% of the environment. However, due to numerical errors, especially when we don't have constant access to the sensors, this percentage was distorted and exceeded 100\%. So we dropped the idea.
+    We consider the navigation to be finished when no new point to explore can be determined. Indeed, in this case, it means that all points have been explored. We had the initial idea to use, in addition to this technique, a percentage of exploration: we would stop the navigation when the robot had explored more than 99.5\% of the environment. However, due to numerical errors, especially when we don't have constant access to the sensors, this percentage was distorted and exceeded 100\%. So we dropped the idea.
     
-    To plan a path, we used the A* algorithm. We found a MATLAB implementation on the Internet and used it. The choice of this algorithm came naturally to us because we had studied it before and its performance is very good. Indeed, it operates under \SI{50}{\milli\second}, which respects the constraint of this project.
+    To plan a path, we used the A* algorithm. We found a MATLAB implementation on the Internet (\cite{astarmatlab}) and used it. The choice of this algorithm came naturally to us because we had studied it before and its performance is very good. Indeed, it operates under \SI{50}{\milli\second}, which respects the constraint of this project.
     
-    However, we have that its execution time is proportional to the size of the environment. To overcome this problem, we thought of using a solution where we define key points on the map, and that we plan a path while still passing these key points. This would drastically reduce the execution time since the algorithm would only act on a few points instead of the whole map. However, with such a solution, the definition of the key points is crucial: if the choice of key points is wrong, the robot may not find a path. So we finally dropped this method to keep the traditional A* algorithm, but we are well aware that on a much larger map, the \SI{50}{\milli\second} threshold may be crossed. For safety reasons due to this threshold, we stop the robot when calling the algorithm.
+    However, its execution time is proportional to the size of the environment. To overcome this problem, we thought about using a solution where we define key points on the map, and then we plan a path passing through these key points. This would drastically reduce the execution time since the algorithm would only act on a few points instead of the whole map. However, with such a solution, the definition of the key points is crucial: if the choice of key points is wrong, the robot may not find a path. So we finally dropped this method to keep the traditional A* algorithm, but we are well aware that on a much larger map, the \SI{50}{\milli\second} threshold may be crossed. For safety reasons due to this threshold, we stop the robot when calling the algorithm.
     
     We also tested the D* algorithm provided with P. Corke's Robotics toolbox, but it was too slow so we dropped it.
+    
+    We also thought about probabilistic road maps, but ensuring that the resulting graph was connected was not a simple task, as well as the fact that we had no certainty about the ability of the robot to explore all the map with the graph (ensuring that no area was without neighbouring points).
     
     \subsection{Move the robot}
     
@@ -245,7 +243,9 @@
     
     The first step we do is calculate the angle (in an absolute frame of reference) that the robot must have to be aligned with its objective. We then calculate the distance between this angle and the current angle of the robot (the third Euler angle of the robot). We also calculate the distance (L1 norm) between the robot's position and its objective.
     
-    The second step is to assign values to the velocities. We distinguish several cases depending on the distance between the angles. If the latter is very high, the robot rotates and does not move forward. If the latter is moderately high, the robot turns and begins to move slowly. If, finally, the distance between the angles is very small, the robot moves forward and does not turn. This fairly simple system makes movement fluid and ensures that the robot does not deviate from its path.
+    The second step is to assign values to the velocities. We distinguish several cases depending on the distance between the angles. If the latter is very high, the robot rotates and does not move forward. If the latter is moderately high, the robot turns and begins to move slowly. If, finally, the distance between the angles is very small, the robot moves forward and does not turn. This fairly simple system makes movement fluid (we do not reach a point in the path, stop, rotate then move forward anymore) and ensures that the robot does not deviate from its path.
+    
+    We decided to not use the left-right movements of the robot since only a very small part of the literature discussed such robots, it did not feel particularly necessary for our tasks and the approximations given by the odometry were less precise for it than for the forward-backward movements.
     
     \subsection{Navigation finished}
     
@@ -272,7 +272,7 @@
         \label{fig:navigation.map}
     \end{figure}
     
-    When we have access to the GPS once every minute, we found that waiting for the last update at the end of the navigation allowed us to get a better map for manipulation. So we implemented a mechanism that, when navigation is finished, waits for the last correction with GPS before continuing (so, the robot doesn't move and wait, for a maximum of 1 minute).
+    When we have access to the GPS once every minute, we found that waiting for the last update at the end of the navigation allowed us to get a better map for manipulation. So we implemented a mechanism that, when the navigation is finished, waits for the last correction with GPS before continuing (so, the robot doesn't move and wait, for a maximum of 1 minute).
     
     % ----- Manipulation ----- %
     
@@ -288,7 +288,7 @@
     
     This function easily finds the circles when the map is accurate. However, if the map is not precise (which is the case when we work with odometry and little GPS), the tables are sometimes represented by a few scattered pixels and therefore not detected by the function.
     
-    To overcome this, we did pre-processing on the matrix. First, we make an inflate of it. This allows us to inflate the dot amats. Secondly, we quadruple the resolution of the image. Indeed, by default it is $150\times150$ pixels, and the tables are therefore a few pixels in radius, which is not easy to detect by MATLAB. Finally, we vary the parameters of the \texttt{imfindcircles} function in order to make it more flexible.
+    To overcome this, we did pre-processing on the matrix. First, we make an inflated version of it. This allows us to inflate the dot cluster. Secondly, we quadruple the resolution of the image. Indeed, by default it is $150\times150$ pixels, and the tables are therefore a few pixels in radius, which is not easy to detect by MATLAB. Finally, we vary the parameters of the \texttt{imfindcircles} function in order to make it more flexible.
     
     When the center of each table is detected, we manually set the radius to \SI{40}{\centi\meter} (because we know that the radius of the tables is \SI{40}{\centi\meter} by checking in the simulator). If we didn't have this data, we would simply have taken the radius values returned by MATLAB.
     
@@ -315,7 +315,7 @@
     
     So we start by bringing the robot close to a table (we explore the tables from the closest to the furthest away from the robot). To do this, we generate $15$ points around the table (with a margin of a few centimeters so that the points are far from the table) and we bring the robot to the point that is closest to it. Then we align the robot with the center of the table. Knowing the position of the robot and the position of the center of the table, it is easy to know the angle to be aligned to the table.
     
-    When we don't use GPS (or very little), this alignment step is more complex. Indeed, the center of the table and the position of the robot are both based on estimated data and not exact data. To overcome this problem, we make the robot align towards the center of the table using a 3D point cloud: we filter the points to keep only those of the table and we find the closest point to the robot. Then we align the robot facing this closest point.
+    When we don't use GPS (or very little), this alignment step is more complex. Indeed, the center of the table and the position of the robot are both based on estimated data and not exact data. To overcome this problem, we make the robot align towards the center of the table using a 3D point cloud: we filter the points to keep only those of the table and we find the closest point to the robot. Then we align the robot facing this closest point. We also use this point obtained via the 3D point cloud to re-determine the position of the center of the table. Indeed, we know that the center is at a distance \emph{radius} from the table edge and lying on the line joining the point of the table closest to the robot and the center of the robot. We found that re-positioning the center of the table, and thus the table, at this step leads to better results later.
     
     Then, when the robot is aligned facing the table, we bring it a few centimeters closer (using distances calculated on the basis of Hokuyo) and we take a 3D cloud point (quite large) of the table. We eliminate the points that are too distant and too low so that we keep only the points representing the objects. We then use MATLAB's \texttt{pcsegdist} function to segment the points into different clusters. We set that two points are considered to belong to two different clusters if they are more than \SI{10}{\centi\meter} apart. Thus, on the empty table we get no clusters, on the easy table we get $5$ (or $4$ depending on the viewing angle) clusters, and on the difficult table we get $1$ cluster. We can then easily determine the type of the table according to the number of clusters found.
     
@@ -337,21 +337,21 @@
     
     The advantage of this method is that it is particularly robust: it does not depend on the color or shape of the objects. Initially, we took a photo and analyzed the colors present in the photo. This technique worked, but was color-dependent, which was not robust.
     
-    In order to save time for further manipulation, we already calculate the (central) position of the objects on the basis of these clusters. These positions will be used to grab the objects.
+    In order to save time for further manipulation, we already calculate the (central absolute) position of the objects on the basis of these clusters. These positions will be used to grab the objects.
     
     For the difficult table, in order to separate the objects into different clusters, we re-use MATLAB's \texttt{pcsegdist} function, but this time with a smaller distance between each cluster.
     
-    To calculate the position of an object, we isolate all the points in its cluster and simply calculate the average position of all the points. These positions are then converted into the absolute coordinate system. Knowing the position and orientation of the robot, the conversion from relative to absolute coordinates is trivial.
+    To calculate the position of an object, we isolate all the points in its cluster and simply calculate the average position of all the points (centroid of the shape). These positions are then converted into the absolute coordinate system. Knowing the position and orientation of the robot, the conversion from relative to absolute coordinates is trivial.
     
     \subsubsection{\texttt{pcsegdist} function}
     
-    This function of MATLAB allows us to separate the different points of a 3D point cloud from a clustered point. We learned about its operation in order to understand it: the function simply calculates the Euclidean distance from a point to all its neighbors and decides, based on this distance, if the point belongs to the same cluster as its neighbors or if it forms a new cluster. The threshold on the distance is a configurable data.
+    This function of MATLAB allows us to separate the different points of a 3D point cloud from a clustered point. We learned about its operation in order to understand it: the function simply calculates the Euclidean distance from a point to all its neighbors and decides, based on this distance, if the point belongs to the same cluster as its neighbors or if it forms a new cluster. The threshold on the distance is a configurable parameter.
     
     \subsection{Grabbing an object}
     
-    The third step is to grab an object. To do this, we start by making the robot go near the object. We use the same system as before: we generate points around the table and take the point closest to the object (the absolute position of the objects was determined in the previous step). When the robot has reached this point, we align it with the object (same principle as for aligning the robot with the center of the table).
+    The third step is to grab an object. To do this, we start by making the robot go near the object. We use the same system as before: we generate points around the table (the easy one for the first batch of objects, then the hard one) and take the point closest to the object (the absolute position of the objects was determined in the previous step). When the robot has reached this point, we align it with the object (same principle as for aligning the robot with the center of the table).
     
-    Again, when we do not have access to GPS frequently, relying only on the position of the object to align the robot is not always reliable. In this case, we take a 3D cloud point when the robot is close to the table and align it with the center of the table (with the same 3D cloud point analysis as the previous step). The robot is then aligned with the center of the table and not with the object, but it doesn't really matter.
+    Again, when we do not have access to GPS frequently, using only the position of the object to align the robot is not always reliable. In this case, we take a 3D cloud point when the robot is close to the table and align it with the center of the table (with the same 3D cloud point analysis as the previous step). The robot is then aligned with the center of the table and not with the object, but it doesn't really matter since we have picked a position close to the said object.
     
     When the robot is globally aligned with its target, it then moves to the fine-tuning phase. Indeed, to grab an object, we use the arm and the gripper always in the same way and at the same position (example in Fig. \ref{fig:manipulation.grasp.drop.position}). The robot must therefore be positioned well in front of and at a precise distance from the object (\SI{33}{\centi\meter}).
     
@@ -362,7 +362,7 @@
         \label{fig:manipulation.grasp.drop.position}
     \end{figure}
     
-    To align the robot well in front of the object, we take 3D point clouds, isolate the point cluster of the closest object and calculate its central point. According to the x-coordinate of this point, we can tell if the robot is well aligned or not (if $x = 0$, the robot is well in front of the object, otherwise it must slightly turn left or right).
+    To align the robot well in front of the object, we take 3D point clouds, isolate the point cluster of the closest object and calculate its central point. According to the x-coordinate of this point, we can tell if the robot is well aligned or not (if $x = 0$, the robot is well in front of the object, otherwise it must slightly turn left or right, we of course allow a small tolerance).
     
     When the robot is perfectly aligned, we must put it at a precise distance from the object. To do this, we take 3D point clouds again and calculate the central point of the closest object. We calculate the distance between this point and the sensor of the robot. According to the found distance, we know if we have to move the robot forward or backward slightly.
     
@@ -397,21 +397,21 @@
     
     The last step is to place the grabbed objects on the objective table.
     
-    When the robot has grabbed an object, we start by planning a path to the objective table. To do this, we use the same technique of the previous steps: we generate points around the table and take the closest one to the robot. However, for this step, we try not to take the same one twice so that the robot does not drop two objects in the same place.
+    When the robot has grabbed an object, we start by planning a path to the objective table. To do this, we use the same technique as for the previous steps: we generate points around the table and take the closest one to the robot. However, for this step, we try not to take the same one twice so that the robot does not drop two objects at the same place.
     
     When the robot is close to the objective table, we align it with its center. As before, in cases where we have no (or little) access to GPS, we use a 3D point cloud to align the robot.
     
-    Once the robot is aligned with the center of the table, we bring it closer to a certain distance (calculated on the basis of the Hokuyo) and make it do a half turn. Finally, he just has to put the object on the table. As for the grab, we use a fixed position of the gripper (see Fig. \ref{fig:manipulation.grasp.drop.position}) to drop the objects.
+    Once the robot is aligned with the center of the table, we bring it closer to a certain distance (calculated on the basis of the Hokuyo) and make it do a half turn. Finally, it just has to put the object on the table. As for the grab, we use a fixed position of the gripper (see Fig. \ref{fig:manipulation.grasp.drop.position}) to drop the objects.
     
-    This technique works very well. In very rare cases, the objects have fallen after being placed on the table. We think that this behavior, a little hazardous, comes from the simulator and not really from our technique. Unfortunately, when the object falls (and rolls off the table), there is not much we can do about it.
+    This technique works very well. In very rare cases, the objects have fallen after being placed on the table. We think that this behavior, a little hazardous, comes from the simulator and not really from our technique since some objects sometimes fall to the ground at the very beginning of the simulations. Unfortunately, when the object falls (and rolls off the table), there is not much we can do about it.
     
     \subsection{Manipulation finished}
     
     When the robot has dropped an object, it returns to the table with objects. If it still has object positions in memory, it will face the object and try to grab it. If, on the contrary, it has grabbed all the objects it has spotted during the analysis of the table, it makes a wide 3D cloud point of the table. If it detects objects again, the process starts again. If it doesn't detect any more objects, the manipulation is finished!
     
-    In case of a difficult manipulation, the robot does not stop the manipulation but restarts the whole process with the hard table.
+    In the case of the difficult manipulation, the robot does not stop the manipulation but restarts the whole process with the hard table.
     
-    Considering the different verifications made (frequent 3D point cloud and pictures were taken), we are almost certain that the robot will grab all the objects and won't forget any of them. Only the drop of the objects is an operation that we cannot verify.
+    Considering the different verifications made (frequent 3D point cloud and pictures were taken), we are almost certain that the robot will grab all the objects and won't forget any of them. Only the drop of the objects is an operation that we cannot verify and could do nothing about even if we verified it.
     
     \subsection{The hard table}
     
@@ -440,7 +440,45 @@
         \href{https://youtu.be/FpIr6F7JF6c}{\texttt{\textcolor{blue}{https://youtu.be/FpIr6F7JF6c}}}
     \end{center}
     
-    The robot manages to grab 4 of the 5 objects and makes 1 fall to the ground.
+    The robot manages to grab 4 of the 5 objects and one falls to the ground, although, for most runs, the 4 objects are actually carried to the table.
+    
+    In order to grab lying objects, we have devised the algorithm but have not implemented it. The first step would be to detect in the point cloud whether or not the object is lying (the width of the sub-cloud exceeding a certain threshold) and, if it is the case, to position the robot where the line representing the height of the object intersects the circle of possible grabbing positions around the table. We would thus face the small base of the object and would be able to grab it.
+    
+    % ----- Additional tests ----- %
+    
+    \section{Additional tests}
+    
+    In order to test the robustness of our implementation, we created 4 new environments based on the original one (\texttt{house\_2020.ttt}). We added difficulties such as diagonal walls, inaccessible areas, tight corridors and tables in corners. These environments are shown in Fig. \ref{fig:additional.tests.variations}.
+    
+    \begin{figure}[!h]
+        \centering
+        \begin{subfigure}[b]{0.23\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{resources/png/house-var-1.png}
+            \caption{Variation 1.}
+        \end{subfigure}
+        \hfill
+        \begin{subfigure}[b]{0.23\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{resources/png/house-var-2.png}
+            \caption{Variation 2.}
+        \end{subfigure}
+        \begin{subfigure}[b]{0.23\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{resources/png/house-var-3.png}
+            \caption{Variation 3.}
+        \end{subfigure}
+        \hfill
+        \begin{subfigure}[b]{0.23\textwidth}
+            \centering
+            \includegraphics[width=\textwidth]{resources/png/house-var-4.png}
+            \caption{Variation 4.}
+        \end{subfigure}
+        \caption{Variations of the original \texttt{house\_2020.ttt} map.}
+        \label{fig:additional.tests.variations}
+    \end{figure}
+    
+    In all cases, our robot managed to explore the environment and find the $3$ tables. The transport of the objects was also successful for the easy table for the four cases. We are quite proud of these results because these variations are not especially easy. Although it has its limitations, is shows that our code is quite robust and can adapt to new environments.
     
     % ----- Retrospective analysis ----- %
     
@@ -448,15 +486,15 @@
     
     Our implementation has some positive points that we are proud of, but also some negative points that we could improve in the future.
     
-    First of all, we are quite satisfied with our code: it is clean, well organized and commented. The object-oriented paradigm allows for clean use and easy maintainability. We are also happy with its robustness: problem situations are, in a majority of cases, detected and handled correctly.
+    First of all, we are quite satisfied with our code: it is clean, well organized and commented. The object-oriented paradigm allows for clean use and easy maintainability. We are also happy with its robustness: problematic situations are, in a majority of cases, detected and handled correctly.
     
     Secondly, we are also happy with the robustness of some of our algorithms: the detection of tables on the map is really reliable, the segmentation of objects in 3D point clouds works quite well and the object grab check mechanism avoids empty round trips between tables.
     
     Concerning the object grasping, our mechanism is not very accurate. Despite our verification system, the robot sometimes grabs objects in an inelegant way. This could have been improved by making a more thorough analysis of the 3D point cloud to determine the position of the faces of the objects and thus be able to align perfectly in front of them.
     
-    We are quite happy with our odometry. This seems to work relatively well: we get a representation of the environment that is almost as precise as with GPS. However, in rare cases the representation is poor (some pieces of the wall are forgotten since the last Hokuyo ray to see them was parallel to that wall, etc.). We haven't found a robust way to avoid this. But being quite rare cases, we are not too worried.
+    We are quite happy with our odometry. This seems to work relatively well: we get a representation of the environment that is almost as precise as with the GPS data. However, in rare cases the representation is poor (some pieces of the wall are forgotten since the last Hokuyo ray to see them was parallel to that wall, etc.). We haven't found a robust way to avoid this. But being very rare cases, we are not too worried.
     
-    Finally, regarding pure SLAM, we are disappointed that we did not get there. We tried quite a few techniques, but each time was unsuccessful. We realized that it is not an easy task and that it takes more time than we expected.
+    Finally, regarding pure SLAM, we are disappointed that we did not get there. We tried quite a few techniques, but every one of them was unsuccessful. We realized that it is not an easy task and that it takes more time than we expected.
     
     % ----- Conclusion ----- %
     
@@ -464,13 +502,13 @@
     
     This project allowed us to explore a part of the robotics world. Despite the simplifying assumptions, the simple environment and the fairly easy tasks to perform, we realized that it is not easy to create an autonomous robot.
     
-    We have learned to use route planning algorithms as well as sensors to discover and analyze an environment as well as to construct a relevant representation of it.
+    We have learned to use route planning algorithms and to use sensors to discover and analyze an environment as well as to construct a relevant representation of it.
     
-    We also learned to manipulate more mechanical aspects of the robot: use of its arm and gripper, precision placement, etc. We made him do simple tasks like grabbing and carrying objects on his own.
+    We also learned to manipulate more mechanical aspects of the robot: the use of its arm and gripper, precision placement, etc. We made it do simple tasks like grabbing and carrying objects on its own.
     
     All of these tasks have been implemented and completed successfully. Using GPS leads to great results. The use of odometric data leads to less precise results, but quite acceptable and allowing the robot to perform these tasks.
     
-    However, despite the very large number of hours spent on this project; far exceeding the course workload assessment, we were unable to implement even one of the two non-mandatory milestones; we are a little disappointed by this.
+    However, despite the very large number of hours spent on this project, far exceeding the course workload assessment, we were unable to implement even one of the two non-mandatory milestones, and we are a little disappointed by this.
     
     Autonomous control of a robot in a real (simulated) environment is far from easy given the unknown situations and environment. This course allowed us to have the first glimpse of its difficulties and to open the door to the large world of autonomous robots and robotics in general!
     
