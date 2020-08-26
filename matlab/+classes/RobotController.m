@@ -294,6 +294,24 @@ classdef RobotController < handle
 			end
 		end
 
+		function forceUpdate(obj)
+			% Force the update of the position and orientation
+			% of the robot with the sensors. Use only in
+			% difficult situations.
+
+			% Update position and orientation
+			obj.absPos = obj.getRelativePositionFromGPS() - obj.initPos;
+			obj.orientation = obj.getOrientationFromSensor();
+
+			% Update data for odometry
+			obj.estimatedPos = obj.absPos;
+			obj.prevOr = obj.orientation;
+
+			for i = 1:max(4, numel(obj.prevWheelAngles))
+				[~, obj.prevWheelAngles(i)] = obj.vrep.simxGetJointPosition(obj.id, obj.h.wheelJoints(i), obj.vrep.simx_opmode_buffer);
+			end
+		end
+
 		function corrected = hasCorrectedMap(obj)
 			% Check if the robot has corrected the map (with
 			% scans correction) in the current iteration. This

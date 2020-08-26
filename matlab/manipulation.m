@@ -833,9 +833,13 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 				pathList = [];
 				objective = [];
 
+				hasAccCurrentObj = true;
+
+				% Reset go to objective
 				gotoObjective = robot.absPos;
 
-				hasAccCurrentObj = true;
+				% Force update position and orientation
+				robot.forceUpdate();
 			end
 
 			% Check if robot is currently doing an objective
