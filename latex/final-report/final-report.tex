@@ -25,6 +25,8 @@
 \usepackage{caption}
 \usepackage{subcaption}
 
+\usepackage{xcolor}
+
 
 %%%%%%%%%%%%%%%%%%
 % Configurations %
@@ -84,7 +86,7 @@
     Our implementation allowed the youBot to successfully perform navigation and manipulation. A video showing the robot in action is available via the following link:
     
     \begin{center}
-        \href{to do}{to do}
+        \href{https://youtu.be/DcAZKloe3Qk}{\texttt{\textcolor{blue}{https://youtu.be/DcAZKloe3Qk}}}
     \end{center}
     
     This document will begin by briefly explaining the organization of the code. Then, it will explain in a general way, via a diagram representing the finite state machine, how the robot plans its actions. Each milestone (navigation and manipulation) will then be detailed: strategy used, problems encountered, etc. Finally, this document will end with possible improvements to our implementation and a conclusion.
@@ -154,9 +156,11 @@
     
     \subsubsection{Odometry and GPS correction}
     
-    For the second navigation milestone, we only have access to the GPS data every minute. The approach we have thus taken is to estimate the position and orientation of the robot at each time step via the odometry. When looking at the function \texttt{youbot\_drive}, we have seen that the angular displacements and rotation between two-time steps can easily be retrieved via a linear combination of the movement of each wheel. Multiplying these values by the radius of the wheels of the robot (\SI{5}{\centi\meter} for the displacements and an experimental value of about \SI{12.75}{\centi\meter} for the rotation), we can get the linear displacements and the rotation in radian.
+    For the second navigation milestone, we only have access to the GPS data every minute. The approach we have thus taken is to estimate the position and orientation of the robot at each time step via the odometry.
     
-    Plugging these values in the following equations, taken from \textbf{ref} ($v$ is the forward velocity during the time step and $w$ the rotational one),
+    When looking at the function \texttt{youbot\_drive}, we have seen that the angular displacements and rotation between two-time steps can easily be retrieved via a linear combination of the movement of each wheel. Multiplying these values by the radius of the wheels of the robot (\SI{5}{\centi\meter} for the displacements and an experimental value of about \SI{12.75}{\centi\meter} for the rotation), we can get the linear displacements and the rotation in radian. However, the rotation has finally been estimated thanks to the orientation sensors, since it is available at any time. The value we obtain with the linear combination is discussed in our SLAM attempts section. 
+    
+    Plugging these values in the following equations, taken from \cite{probaRobotics} ($v$ is the forward velocity during the time step and $w$ the rotational one),
 
     \begin{equation*}
         \left(\begin{array}{l}
@@ -172,11 +176,32 @@
         \end{array}\right)
     \end{equation*}
 
-    we retrieve correct approximations of the displacement of the youBot along both axes. The estimation of the $w$ based on the odometry, however, is far from perfect. Indeed, the relationship that exists between the linear combination of the angular movement of the wheels and the real rotation is semi-linear, but with high variance for small angles, as can be seen in the graph \textbf{mettre graphe ici}. 
+    we retrieve correct approximations of the displacement of the youBot along both axes. However, we have a slight deviation between the estimated position and the real one. In order to correct that, we could have gone for a particle filter, however we do not believe it would have lead to a better solution that the one we have chosen.
+    
+    We have realized that the deviation from the estimated position to the real one evolves in a quasi-linear fashion in our \SI{60}{\second} runs between two corrections. In order to correct our belief about the map, we have thus decided to simply compute the deviation between the estimated position and the real one at the correction phase, to divide that number by the amount of scans done in that time in order to get the increment of position to correct between two scans, and to correct these scans by modifying the position of the youBot accordingly. The result of these scans are then put in a map that holds only corrected values, and from which the running map is copied after every corrections.
+    
+    This does not yield a perfect result every time, but we obtain a map that is usable without problems in the manipulation step.
+    
+    \subsubsection{SLAM}
+    
+    In order to implement the SLAM, we have tried numerous things, but none has provided reasonable results. 
+    
+    We have based ourselves on the odometry for the estimation of the youbot state, but we found no ways to reliably link the odometry to the rotation, whereas we had almost no problem doing so for the forward movement. This certainly comes from the physics constraints of the simulator and the fact that there is a lot of friction and slipping for low angles of rotation.
+    
+    Thus, with that highly imperfect prediction of the rotation, we decided to try correcting every few steps with some scan matching, as the SLAM algorithm of MATLAB is supposed to do, but we reached no success and had a very bad map from the first seconds. We also tried using the MATLAB SLAM facility but it also lead to very bad results. We also tried implementing our own particle filter, using the odometry equations as state transition function and adding Gaussian incertitude to the values of $v$ and $w$, but it lead nowhere. Since we had no way of having a real measurement to correct ourselves, it is not very surprising. The estimation given by the wheels was more precise than any measurement for the displacements, but nothing was precise enough for the rotation. Our only other mean of getting a measurement was through scan matching, and it was not precise enough. We did not try to implement a Kalman Filter since we thought it would not provide better results, and our time was running short.
+    
+    \textbf{Talk about relaxations, and the fact that we don't have beacons nor their positions nor their numbers, and even so we would deviate in the snake part since there is no beacon there. -> SLAM is designed to fuck us.}
+    
+    The estimation of the $w$ based on the odometry, however, is far from perfect. Indeed, the relationship that exists between the linear combination of the angular movement of the wheels and the real rotation is semi-linear, but with high variance for small angles, as can be seen in Fig. \ref{fig:slam.relationship.rotation}.
+    
+    \begin{figure}[!h]
+        \centering
+        \includegraphics[width=0.4\textwidth]{resources/png/relationship-rotation.png}
+        \caption{Relationship between the linear combination of the angular movement of the wheels and the real rotation.}
+        \label{fig:slam.relationship.rotation}
+    \end{figure}
     
     Since we have access to the real orientation at all times, it is actually not necessary to estimate the orientation based on the odometry, but it was done in the hope we would get a working SLAM.
-    
-    Talk about the correction phase.
     
     \subsection{Update data from Hokuyo}
     
@@ -388,6 +413,35 @@
     
     Considering the different verifications made (frequent 3D point cloud and pictures were taken), we are almost certain that the robot will grab all the objects and won't forget any of them. Only the drop of the objects is an operation that we cannot verify.
     
+    \subsection{The hard table}
+    
+    We tried to carry out the milestone manipulation not compulsory consisting in transporting all the objects of the hard table.
+    
+    The main difficulty of this table is that all the objects are gathered in a single heap. So the first step is to try to segment the 3D point cloud representing the heap of objects in order to be able to treat each object individually. For this, we used the same technique as before with a much smaller distance between clusters. We obtained the segmentation shown in Fig. \ref{fig:manipulation.hard.table}.
+    
+    \begin{figure}[!h]
+        \centering
+        \includegraphics[width=0.4\textwidth]{resources/png/clusters-hard-segmented.png}
+        \caption{Segmented 3D point cloud of the hard table.}
+        \label{fig:manipulation.hard.table}
+    \end{figure}
+    
+    This segmentation is not perfect but seems to be suitable to detect the different objects.
+    
+    The second difficulty is that all the objects are very close to each other and therefore grabbing an object usually leads to touching the objects next to it and deflecting the gripper from its objective. For this, we see no other solution than to grab the objects in a very precise order. We have not been able to implement this.
+    
+    A last difficulty is grabbing the blue lying object. Indeed, given its position, it is not possible to grab it from anywhere. We have to be in a very precise place, depending on how the arm is positioned to grab the object.
+    
+    By leaving our code as it is, the robot manages, in a few tries, to grab several objects from the hard table but in an inelegant way. It does not manage to grab the last blue object lying down.
+    
+    A video illustrating our robot on the hard table is available via the following link:
+    
+    \begin{center}
+        \href{https://youtu.be/FpIr6F7JF6c}{\texttt{\textcolor{blue}{https://youtu.be/FpIr6F7JF6c}}}
+    \end{center}
+    
+    The robot manages to grab 4 of the 5 objects and makes 1 fall to the ground.
+    
     % ----- Retrospective analysis ----- %
     
     \section{Retrospective analysis}
@@ -400,7 +454,7 @@
     
     Concerning the object grasping, our mechanism is not very accurate. Despite our verification system, the robot sometimes grabs objects in an inelegant way. This could have been improved by making a more thorough analysis of the 3D point cloud to determine the position of the faces of the objects and thus be able to align perfectly in front of them.
     
-    We are quite happy with our odometry. This seems to work relatively well: we get a representation of the environment that is almost as precise as with GPS. However, in rare cases the representation is poor (some pieces of the wall are forgotten, etc.). We haven't found a robust way to avoid this. But being quite rare cases, we are not too worried.
+    We are quite happy with our odometry. This seems to work relatively well: we get a representation of the environment that is almost as precise as with GPS. However, in rare cases the representation is poor (some pieces of the wall are forgotten since the last Hokuyo ray to see them was parallel to that wall, etc.). We haven't found a robust way to avoid this. But being quite rare cases, we are not too worried.
     
     Finally, regarding pure SLAM, we are disappointed that we did not get there. We tried quite a few techniques, but each time was unsuccessful. We realized that it is not an easy task and that it takes more time than we expected.
     
@@ -415,6 +469,8 @@
     We also learned to manipulate more mechanical aspects of the robot: use of its arm and gripper, precision placement, etc. We made him do simple tasks like grabbing and carrying objects on his own.
     
     All of these tasks have been implemented and completed successfully. Using GPS leads to great results. The use of odometric data leads to less precise results, but quite acceptable and allowing the robot to perform these tasks.
+    
+    However, despite the very large number of hours spent on this project; far exceeding the course workload assessment, we were unable to implement even one of the two non-mandatory milestones; we are a little disappointed by this.
     
     Autonomous control of a robot in a real (simulated) environment is far from easy given the unknown situations and environment. This course allowed us to have the first glimpse of its difficulties and to open the door to the large world of autonomous robots and robotics in general!
     
