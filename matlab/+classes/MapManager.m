@@ -253,7 +253,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 
 			% Initialize parameter
 			guessRadius = obj.radiusTables * obj.prec;
-			resizeFactor = 4;
+			resizeFactor = 5;
 
 			% Inflate a copy of the map
 			mapInflated = copy(obj.map);
