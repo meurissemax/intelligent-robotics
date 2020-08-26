@@ -648,10 +648,8 @@ classdef MapManager < handle & matlab.mixin.Copyable
 							d = pdist2([i, j], pos, 'euclidean');
 
 							if d < mDist
-								if d > 15
-									mDist = d;
-									nextPoint = [i, j];
-								end
+								mDist = d;
+								nextPoint = [i, j];
 							end
 						end
 					end
