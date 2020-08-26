@@ -537,7 +537,7 @@ function manipulation(vrep, id, timestep, map, robot, difficulty, sceneName, var
 
 			% Check if object is too far for the robot (due
 			% to an error or something else before)
-			if sensorDist > 0.5
+			if sensorDist > 0.55
 
 				% Reset the closest object relative position
 				currentObj = [0, 0];
