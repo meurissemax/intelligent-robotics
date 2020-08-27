@@ -647,7 +647,7 @@ classdef MapManager < handle & matlab.mixin.Copyable
 						if hasFreeNeighbor
 							d = pdist2([i, j], pos, 'euclidean');
 
-							if d < mDist
+							if d < mDist && d > 5
 								mDist = d;
 								nextPoint = [i, j];
 							end
