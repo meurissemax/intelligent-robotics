@@ -15,11 +15,11 @@ as part of the *Introduction to intelligent robotics* course given by Professor 
 
 ## Milestone navigation
 
-In this milestone, the explore its environment and create an appropriate representation of it. This milestone has been realized in the file `navigation.m`.
+In this milestone, the robot explores its environment and creates an appropriate representation of it. This milestone has been realized in the file `navigation.m`.
 
 ## Milestone manipulation
 
-In this milestone, the robot grasp some objects and bring them to a specific table. This milestone has been realized in the file `manipulation.m`.
+In this milestone, the robot grabs some objects and brings them to a specific table. This milestone has been realized in the file `manipulation.m`.
 
 ## How to run the code
 
