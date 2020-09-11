@@ -32,3 +32,7 @@ When all resources are installed :
 3. Lauch VREP;
 4. Update the `Values initialization` part of the `main.m` file;
 5. Run the `main.m` script.
+
+## Score
+
+* This project received a score of **19/20**.
